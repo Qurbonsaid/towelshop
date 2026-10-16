@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && (
+        getUserData().role == 'staff' ||
+        isAdmin()
+      );
+    }
+
+    // 1. Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Users can create/update their own document (e.g. register, save FCM tokens), Admin can do everything
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 2. Barbershops collection
+    match /barbershops/{barbershopId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // 3. Barbers collection
+    match /barbers/{barberId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      // Staff can update running debt and overpaid balance when recording a sale or return
+      allow update: if isStaff();
+    }
+
+    // 4. Sales collection
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff();
+
+      // STRICT 12-HOUR WINDOW ENFORCEMENT
+      // Admin: can edit anytime
+      // Staff: can edit ONLY their own sales within 12 hours from createdAt
+      allow update: if isAdmin() || (
+        isStaff() &&
+        resource.data.staffId == request.auth.uid &&
+        request.time < resource.data.createdAt + duration.value(12, 'h')
+      );
+
+      // Only Admin can delete sales records
+      allow delete: if isAdmin();
+    }
+
+    // 5. Returns collection
+    match /returns/{returnId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+  }
+}
+
