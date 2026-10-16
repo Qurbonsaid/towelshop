@@ -1,68 +1,71 @@
-import React, { useEffect, useState } from 'react'
-import { Download, Package, X } from './icons'
+import React, { useEffect, useState } from "react";
+import { Download, Package, X } from "./icons";
 
 const isRunningStandalone = () => {
-  if (typeof window === 'undefined') return false
+  if (typeof window === "undefined") return false;
   return (
-    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia("(display-mode: standalone)").matches ||
     window.navigator.standalone === true
-  )
-}
+  );
+};
 
 export function InstallPwaButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null)
-  const [isInstalled, setIsInstalled] = useState(isRunningStandalone)
-  const [showModal, setShowModal] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(isRunningStandalone);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     if (isRunningStandalone()) {
-      return
+      return;
     }
 
     // Capture beforeinstallprompt event if supported and not yet installed
 
     const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault()
-      setDeferredPrompt(e)
-    }
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
 
     const handleAppInstalled = () => {
-      setIsInstalled(true)
-      setDeferredPrompt(null)
-    }
+      setIsInstalled(true);
+      setDeferredPrompt(null);
+    };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', handleAppInstalled)
-    }
-  }, [])
+      window.removeEventListener(
+        "beforeinstallprompt",
+        handleBeforeInstallPrompt,
+      );
+      window.removeEventListener("appinstalled", handleAppInstalled);
+    };
+  }, []);
 
   // If already installed, hide the install button
   if (isInstalled) {
-    return null
+    return null;
   }
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
       try {
-        await deferredPrompt.prompt()
-        const choiceResult = await deferredPrompt.userChoice
-        if (choiceResult?.outcome === 'accepted') {
-          setIsInstalled(true)
+        await deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult?.outcome === "accepted") {
+          setIsInstalled(true);
         }
-        setDeferredPrompt(null)
+        setDeferredPrompt(null);
       } catch (err) {
-        console.warn('PWA install prompt error:', err)
-        setShowModal(true)
+        console.warn("PWA install prompt error:", err);
+        setShowModal(true);
       }
     } else {
       // Show instructional modal if browser doesn't expose prompt programmatically (e.g., iOS Safari)
-      setShowModal(true)
+      setShowModal(true);
     }
-  }
+  };
 
   return (
     <>
@@ -83,7 +86,7 @@ export function InstallPwaButton() {
 
       {/* Instructional guide modal for manual install (iOS, desktop or when beforeinstallprompt is handled manually) */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+        <div className="fixed inset-x-0 z-50 flex items-center justify-center bg-black/60 top-0 p-4 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -94,7 +97,9 @@ export function InstallPwaButton() {
                   <h3 className="text-sm font-bold text-slate-900 leading-tight">
                     Ilovani o'rnatish
                   </h3>
-                  <p className="text-[11px] text-slate-500">Towelshop PWA ilovasi</p>
+                  <p className="text-[11px] text-slate-500">
+                    Towelshop PWA ilovasi
+                  </p>
                 </div>
               </div>
               <button
@@ -112,7 +117,10 @@ export function InstallPwaButton() {
                   📱 Android (Chrome / Samsung Internet):
                 </p>
                 <p className="leading-snug">
-                  Brauzerning o'ng yuqori qismidagi <strong>uch nuqta (⋮)</strong> tugmasini bosing va <strong>"Ilovani o'rnatish"</strong> (yoki "Bosh ekranga qo'shish") bandini tanlang.
+                  Brauzerning o'ng yuqori qismidagi{" "}
+                  <strong>uch nuqta (⋮)</strong> tugmasini bosing va{" "}
+                  <strong>"Ilovani o'rnatish"</strong> (yoki "Bosh ekranga
+                  qo'shish") bandini tanlang.
                 </p>
               </div>
 
@@ -121,7 +129,11 @@ export function InstallPwaButton() {
                   🍎 iPhone / iPad (Safari):
                 </p>
                 <p className="leading-snug">
-                  Brauzerning pastki qismidagi <strong>"Ulashish" (Share)</strong> tugmasini bosing va ro'yxatdan <strong>"Bosh ekranga qo'shish" (Add to Home Screen)</strong> ni tanlang.
+                  Brauzerning pastki qismidagi{" "}
+                  <strong>"Ulashish" (Share)</strong> tugmasini bosing va
+                  ro'yxatdan{" "}
+                  <strong>"Bosh ekranga qo'shish" (Add to Home Screen)</strong>{" "}
+                  ni tanlang.
                 </p>
               </div>
             </div>
@@ -139,5 +151,5 @@ export function InstallPwaButton() {
         </div>
       )}
     </>
-  )
+  );
 }

@@ -1,152 +1,154 @@
-import React, { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { onAuthStateChanged } from 'firebase/auth'
-import { doc, onSnapshot } from 'firebase/firestore'
+import React, { useEffect, useState } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
 
-import { AppLayout } from './components/AppLayout'
-import { auth, db } from './config/firebase'
-import { COLLECTIONS } from './constants/models'
-import { ROLES } from './constants/roles'
-import { HeaderProvider } from './context/HeaderContext'
-import { uz } from './i18n/uz'
-import { BarberDetailsPage } from './pages/BarberDetailsPage'
-import { BarbershopDetailsPage } from './pages/BarbershopDetailsPage'
-import { BarbershopsPage } from './pages/BarbershopsPage'
-import { LoginPage } from './pages/LoginPage'
-import { MapView } from './pages/MapView'
-import { ProfilePage } from './pages/ProfilePage'
-import { SalesPage } from './pages/SalesPage'
-import { StaffManagementPage } from './pages/StaffManagementPage'
-import { StatsPage } from './pages/StatsPage'
-import { loginWithPhone, logout } from './services/authService'
-import { setupForegroundNotifications } from './services/fcmService'
+import { AppLayout } from "./components/AppLayout";
+import { auth, db } from "./config/firebase";
+import { COLLECTIONS } from "./constants/models";
+import { ROLES } from "./constants/roles";
+import { HeaderProvider } from "./context/HeaderContext";
+import { uz } from "./i18n/uz";
+import { BarberDetailsPage } from "./pages/BarberDetailsPage";
+import { BarbershopDetailsPage } from "./pages/BarbershopDetailsPage";
+import { BarbershopsPage } from "./pages/BarbershopsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { MapView } from "./pages/MapView";
+import { ProfilePage } from "./pages/ProfilePage";
+import { SalesPage } from "./pages/SalesPage";
+import { StaffManagementPage } from "./pages/StaffManagementPage";
+import { StatsPage } from "./pages/StatsPage";
+import { loginWithPhone, logout } from "./services/authService";
+import { setupForegroundNotifications } from "./services/fcmService";
 import {
   subscribeBarbers,
   subscribeBarbershops,
   subscribeReturns,
   subscribeSales,
   subscribeUsers,
-} from './services/firestoreService'
-import { resolveDefaultRoute } from './utils/auth'
+} from "./services/firestoreService";
+import { resolveDefaultRoute } from "./utils/auth";
 
 function ProtectedRoute({ allowedRoles, role, children }) {
   if (!role || !allowedRoles.includes(role)) {
-    return <Navigate replace to="/sartaroshxonalar" />
+    return <Navigate replace to="/sartaroshxonalar" />;
   }
 
-  return children
+  return children;
 }
 
 function App() {
-  const [user, setUser] = useState(null)
-  const [userProfile, setUserProfile] = useState(null)
-  const [role, setRole] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [foregroundToast, setForegroundToast] = useState(null)
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [role, setRole] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [foregroundToast, setForegroundToast] = useState(null);
 
   // Real-time collections shared across app
-  const [barbershops, setBarbershops] = useState([])
-  const [barbers, setBarbers] = useState([])
-  const [sales, setSales] = useState([])
-  const [returns, setReturns] = useState([])
-  const [users, setUsers] = useState([])
+  const [barbershops, setBarbershops] = useState([]);
+  const [barbers, setBarbers] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [returns, setReturns] = useState([]);
+  const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    let unsubscribeDoc = null
+    let unsubscribeDoc = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (unsubscribeDoc) {
-        unsubscribeDoc()
-        unsubscribeDoc = null
+        unsubscribeDoc();
+        unsubscribeDoc = null;
       }
 
       if (!currentUser) {
-        setUser(null)
-        setUserProfile(null)
-        setRole(null)
-        setLoading(false)
-        return
+        setUser(null);
+        setUserProfile(null);
+        setRole(null);
+        setLoading(false);
+        return;
       }
 
-      setUser(currentUser)
+      setUser(currentUser);
 
       // Listen to user profile in real-time
-      const userRef = doc(db, COLLECTIONS.USERS, currentUser.uid)
+      const userRef = doc(db, COLLECTIONS.USERS, currentUser.uid);
       unsubscribeDoc = onSnapshot(userRef, (snapshot) => {
         if (snapshot.exists()) {
-          const data = snapshot.data()
-          setUserProfile(data)
-          setRole(data.role || ROLES.STAFF)
+          const data = snapshot.data();
+          setUserProfile(data);
+          setRole(data.role || ROLES.STAFF);
         } else {
-          setRole(ROLES.STAFF)
+          setRole(ROLES.STAFF);
         }
-        setLoading(false)
-      })
-    })
+        setLoading(false);
+      });
+    });
 
     // Setup FCM Foreground notifications listener
     setupForegroundNotifications((payload) => {
       setForegroundToast({
         title: payload.notification?.title || uz.fcm.newSaleTitle,
         body: payload.notification?.body,
-      })
-      setTimeout(() => setForegroundToast(null), 6000)
-    })
+      });
+      setTimeout(() => setForegroundToast(null), 6000);
+    });
 
     return () => {
-      unsubscribeAuth()
-      if (unsubscribeDoc) unsubscribeDoc()
-    }
-  }, [])
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
+  }, []);
 
   // Subscribe to real-time collections when logged in
   useEffect(() => {
-    if (!user) return
+    if (!user) return;
 
-    const unsubShops = subscribeBarbershops(setBarbershops)
-    const unsubBarbers = subscribeBarbers(setBarbers)
-    const unsubSales = subscribeSales(setSales)
-    const unsubReturns = subscribeReturns(setReturns)
+    const unsubShops = subscribeBarbershops(setBarbershops);
+    const unsubBarbers = subscribeBarbers(setBarbers);
+    const unsubSales = subscribeSales(setSales);
+    const unsubReturns = subscribeReturns(setReturns);
 
-    let unsubUsers = () => {}
+    let unsubUsers = () => {};
     if (role === ROLES.ADMIN) {
-      unsubUsers = subscribeUsers(setUsers)
+      unsubUsers = subscribeUsers(setUsers);
     }
 
     return () => {
-      unsubShops()
-      unsubBarbers()
-      unsubSales()
-      unsubReturns()
-      unsubUsers()
-    }
-  }, [user, role])
+      unsubShops();
+      unsubBarbers();
+      unsubSales();
+      unsubReturns();
+      unsubUsers();
+    };
+  }, [user, role]);
 
   const handleLogin = async (phone, password) => {
-    const result = await loginWithPhone(phone, password)
-    setUser(result.user)
-    setUserProfile(result.profile)
-    setRole(result.role || ROLES.STAFF)
-  }
+    const result = await loginWithPhone(phone, password);
+    setUser(result.user);
+    setUserProfile(result.profile);
+    setRole(result.role || ROLES.STAFF);
+  };
 
   const handleLogout = async () => {
-    await logout()
-    setUser(null)
-    setUserProfile(null)
-    setRole(null)
-  }
+    await logout();
+    setUser(null);
+    setUserProfile(null);
+    setRole(null);
+  };
 
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 text-slate-700">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent" />
-        <p className="mt-3 text-xs font-semibold text-slate-500">{uz.common.loading}</p>
+        <p className="mt-3 text-xs font-semibold text-slate-500">
+          {uz.common.loading}
+        </p>
       </div>
-    )
+    );
   }
 
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
@@ -159,15 +161,27 @@ function App() {
               🔔
             </div>
             <div className="flex-1">
-              <h5 className="text-xs font-bold text-slate-900">{foregroundToast.title}</h5>
-              <p className="text-[11px] text-slate-600 leading-snug mt-0.5">{foregroundToast.body}</p>
+              <h5 className="text-xs font-bold text-slate-900">
+                {foregroundToast.title}
+              </h5>
+              <p className="text-[11px] text-slate-600 leading-snug mt-0.5">
+                {foregroundToast.body}
+              </p>
             </div>
           </div>
         </div>
       )}
 
       <Routes>
-        <Route element={<AppLayout onLogout={handleLogout} role={role} userProfile={userProfile} />}>
+        <Route
+          element={
+            <AppLayout
+              onLogout={handleLogout}
+              role={role}
+              userProfile={userProfile}
+            />
+          }
+        >
           {/* 1. Barbershops Route & Flow */}
           <Route
             index
@@ -237,13 +251,15 @@ function App() {
           <Route
             path="/statistika"
             element={
-              <StatsPage
-                role={role}
-                adminUser={user}
-                sales={sales}
-                barbers={barbers}
-                returns={returns}
-              />
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN]} role={role}>
+                <StatsPage
+                  role={role}
+                  adminUser={user}
+                  sales={sales}
+                  barbers={barbers}
+                  returns={returns}
+                />
+              </ProtectedRoute>
             }
           />
 
@@ -261,10 +277,7 @@ function App() {
           <Route
             path="/profile"
             element={
-              <ProfilePage
-                userProfile={userProfile}
-                onLogout={handleLogout}
-              />
+              <ProfilePage userProfile={userProfile} onLogout={handleLogout} />
             }
           />
 
@@ -272,14 +285,23 @@ function App() {
           <Route path="/xarita" element={<MapView />} />
 
           {/* Legacy redirects */}
-          <Route path="/admin" element={<Navigate replace to="/sartaroshxonalar" />} />
-          <Route path="/staff" element={<Navigate replace to="/sartaroshxonalar" />} />
+          <Route
+            path="/admin"
+            element={<Navigate replace to="/sartaroshxonalar" />}
+          />
+          <Route
+            path="/staff"
+            element={<Navigate replace to="/sartaroshxonalar" />}
+          />
         </Route>
 
-        <Route element={<Navigate replace to={resolveDefaultRoute()} />} path="*" />
+        <Route
+          element={<Navigate replace to={resolveDefaultRoute()} />}
+          path="*"
+        />
       </Routes>
     </HeaderProvider>
-  )
+  );
 }
 
-export default App
+export default App;

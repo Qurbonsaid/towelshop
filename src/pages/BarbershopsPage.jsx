@@ -1,96 +1,96 @@
-import React, { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Building2,
   ChevronRight,
   MapPin,
   Plus,
   Search,
-} from '../components/icons'
-import { BarbershopModal } from '../components/BarbershopModal'
-import { ROLES } from '../constants/roles'
+} from "../components/icons";
+import { BarbershopModal } from "../components/BarbershopModal";
+import { ROLES } from "../constants/roles";
 
-import { useHeader } from '../context/HeaderContext'
-import { uz } from '../i18n/uz'
-import { createBarbershop } from '../services/firestoreService'
+import { useHeader } from "../context/HeaderContext";
+import { uz } from "../i18n/uz";
+import { createBarbershop } from "../services/firestoreService";
 
-export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = [], returns = [] }) {
-  const isAdmin = role === ROLES.ADMIN
-  const navigate = useNavigate()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+export function BarbershopsPage({
+  role,
+  barbershops = [],
+  barbers = [],
+  sales = [],
+  returns = [],
+}) {
+  const isAdmin = role === ROLES.ADMIN;
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Configure header
-  useHeader({
-    title: uz.nav.barbershops,
-    subtitle: `${barbershops.length} ta sartaroshxona`,
-    showBack: false,
-    actions: isAdmin ? (
-      <button
-        type="button"
-        onClick={() => setIsAddModalOpen(true)}
-        className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
-        title={uz.admin.barbershops.addBtn}
-      >
-        <Plus size={18} />
-      </button>
-    ) : null,
-  }, [barbershops.length, isAdmin])
+  useHeader(
+    {
+      title: uz.nav.barbershops,
+      subtitle: `${barbershops.length} ta sartaroshxona`,
+      showBack: false,
+    },
+    [barbershops.length, isAdmin],
+  );
 
   // Compute stats per barbershop
   const shopStatsMap = useMemo(() => {
-    const map = {}
+    const map = {};
     barbershops.forEach((shop) => {
       map[shop.id] = {
         barberCount: 0,
         totalDebt: 0,
         totalOverpaid: 0,
         heldTowels: 0,
-      }
-    })
+      };
+    });
 
-    const barberToShop = {}
+    const barberToShop = {};
     barbers.forEach((barber) => {
-      barberToShop[barber.id] = barber.barbershopId
+      barberToShop[barber.id] = barber.barbershopId;
       if (map[barber.barbershopId]) {
-        map[barber.barbershopId].barberCount += 1
-        map[barber.barbershopId].totalDebt += Number(barber.debt) || 0
-        map[barber.barbershopId].totalOverpaid += Number(barber.overpaid) || 0
+        map[barber.barbershopId].barberCount += 1;
+        map[barber.barbershopId].totalDebt += Number(barber.debt) || 0;
+        map[barber.barbershopId].totalOverpaid += Number(barber.overpaid) || 0;
       }
-    })
+    });
 
     // Towel deliveries
     sales.forEach((s) => {
-      const sId = s.barbershopId || barberToShop[s.barberId]
+      const sId = s.barbershopId || barberToShop[s.barberId];
       if (sId && map[sId]) {
-        map[sId].heldTowels += Number(s.quantityDelivered) || 0
+        map[sId].heldTowels += Number(s.quantityDelivered) || 0;
       }
-    })
+    });
 
     // Towel returns
     returns.forEach((r) => {
-      const sId = r.barbershopId || barberToShop[r.barberId]
+      const sId = r.barbershopId || barberToShop[r.barberId];
       if (sId && map[sId]) {
-        map[sId].heldTowels -= Number(r.quantityReturned) || 0
+        map[sId].heldTowels -= Number(r.quantityReturned) || 0;
       }
-    })
+    });
 
-    return map
-  }, [barbershops, barbers, sales, returns])
+    return map;
+  }, [barbershops, barbers, sales, returns]);
 
   // Filter barbershops by name in real-time
   const filteredShops = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    if (!q) return barbershops
-    return barbershops.filter((shop) =>
-      shop.name.toLowerCase().includes(q) ||
-      (shop.address && shop.address.toLowerCase().includes(q))
-    )
-  }, [barbershops, searchQuery])
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return barbershops;
+    return barbershops.filter(
+      (shop) =>
+        shop.name.toLowerCase().includes(q) ||
+        (shop.address && shop.address.toLowerCase().includes(q)),
+    );
+  }, [barbershops, searchQuery]);
 
   const handleCreateShop = async (data) => {
-    await createBarbershop(data)
-  }
+    await createBarbershop(data);
+  };
 
   return (
     <div className="space-y-3.5 pb-6">
@@ -109,7 +109,7 @@ export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = 
         {searchQuery && (
           <button
             type="button"
-            onClick={() => setSearchQuery('')}
+            onClick={() => setSearchQuery("")}
             className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-slate-400 hover:text-slate-600"
           >
             Tozalash
@@ -137,19 +137,32 @@ export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = 
               <Building2 size={24} />
             </div>
             <p className="text-sm font-semibold text-slate-700">
-              {searchQuery ? 'Qidiruv bo\'yicha sartaroshxona topilmadi' : 'Hozircha sartaroshxonalar mavjud emas'}
+              {searchQuery
+                ? "Qidiruv bo'yicha sartaroshxona topilmadi"
+                : "Hozircha sartaroshxonalar mavjud emas"}
             </p>
             <p className="text-xs text-slate-400 mt-1">
-              {searchQuery ? 'Boshqa nom bilan qidirib ko\'ring' : (isAdmin ? 'Yangi sartaroshxona qo\'shish uchun yuqoridagi tugmani bosing' : '')}
+              {searchQuery
+                ? "Boshqa nom bilan qidirib ko'ring"
+                : isAdmin
+                  ? "Yangi sartaroshxona qo'shish uchun yuqoridagi tugmani bosing"
+                  : ""}
             </p>
           </div>
         ) : (
           filteredShops.map((shop) => {
-            const stats = shopStatsMap[shop.id] || { barberCount: 0, totalDebt: 0, totalOverpaid: 0, heldTowels: 0 }
+            const stats = shopStatsMap[shop.id] || {
+              barberCount: 0,
+              totalDebt: 0,
+              totalOverpaid: 0,
+              heldTowels: 0,
+            };
             const hasLocation = Boolean(
-              shop.latitude !== null && shop.latitude !== undefined &&
-              shop.longitude !== null && shop.longitude !== undefined
-            )
+              shop.latitude !== null &&
+              shop.latitude !== undefined &&
+              shop.longitude !== null &&
+              shop.longitude !== undefined,
+            );
 
             return (
               <div
@@ -171,7 +184,6 @@ export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = 
                         {hasLocation ? (
                           <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
                             <MapPin size={10} />
-                            Xaritada bor
                           </span>
                         ) : null}
                       </div>
@@ -192,28 +204,36 @@ export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = 
                 {/* Summary badges */}
                 <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2.5 text-center">
                   <div className="rounded-lg bg-slate-50 px-2 py-1.5">
-                    <span className="block text-[10px] text-slate-400 font-medium">Sartaroshlar</span>
+                    <span className="block text-[10px] text-slate-400 font-medium">
+                      Sartaroshlar
+                    </span>
                     <span className="text-xs font-bold text-slate-800">
                       {stats.barberCount} ta
                     </span>
                   </div>
 
                   <div className="rounded-lg bg-emerald-50/70 px-2 py-1.5">
-                    <span className="block text-[10px] text-emerald-700 font-medium">Band sochiq</span>
+                    <span className="block text-[10px] text-emerald-700 font-medium">
+                      Band sochiq
+                    </span>
                     <span className="text-xs font-bold text-emerald-900">
                       {Math.max(0, stats.heldTowels)} dona
                     </span>
                   </div>
 
                   <div className="rounded-lg bg-red-50/70 px-2 py-1.5">
-                    <span className="block text-[10px] text-red-600 font-medium">Qarz</span>
+                    <span className="block text-[10px] text-red-600 font-medium">
+                      Qarz
+                    </span>
                     <span className="text-xs font-bold text-red-800 truncate block">
-                      {stats.totalDebt > 0 ? `${stats.totalDebt.toLocaleString()}` : '0'}
+                      {stats.totalDebt > 0
+                        ? `${stats.totalDebt.toLocaleString()}`
+                        : "0"}
                     </span>
                   </div>
                 </div>
               </div>
-            )
+            );
           })
         )}
       </div>
@@ -226,5 +246,5 @@ export function BarbershopsPage({ role, barbershops = [], barbers = [], sales = 
         />
       )}
     </div>
-  )
+  );
 }

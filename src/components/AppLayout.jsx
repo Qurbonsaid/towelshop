@@ -1,5 +1,5 @@
-import React from 'react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import React from "react";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   BarChart3,
@@ -9,37 +9,35 @@ import {
   Shield,
   User,
   Users,
-} from './icons'
-import { ROLES } from '../constants/roles'
-import { useHeaderContext } from '../context/HeaderContext'
-import { uz } from '../i18n/uz'
-import { InstallPwaButton } from './InstallPwaButton'
+} from "./icons";
+import { ROLES } from "../constants/roles";
+import { useHeaderContext } from "../context/HeaderContext";
+import { uz } from "../i18n/uz";
+import { InstallPwaButton } from "./InstallPwaButton";
 
 export function AppLayout({ role, userProfile, _onLogout }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { title, subtitle, showBack, backTo, actions } = useHeaderContext();
 
-
-  const location = useLocation()
-  const navigate = useNavigate()
-  const { title, subtitle, showBack, backTo, actions } = useHeaderContext()
-
-  const isAdmin = role === ROLES.ADMIN
-  const isProfileActive = location.pathname === '/profile'
+  const isAdmin = role === ROLES.ADMIN;
+  const isProfileActive = location.pathname === "/profile";
 
   // Bottom Nav active states
   const isBarbershopsActive =
-    location.pathname === '/' ||
-    location.pathname.startsWith('/sartaroshxonalar')
-  const isSalesActive = location.pathname.startsWith('/savdolar')
-  const isStatsActive = location.pathname.startsWith('/statistika')
-  const isStaffActive = location.pathname.startsWith('/xodimlar')
+    location.pathname === "/" ||
+    location.pathname.startsWith("/sartaroshxonalar");
+  const isSalesActive = location.pathname.startsWith("/savdolar");
+  const isStatsActive = location.pathname.startsWith("/statistika");
+  const isStaffActive = location.pathname.startsWith("/xodimlar");
 
   const handleBack = () => {
     if (backTo) {
-      navigate(backTo)
+      navigate(backTo);
     } else {
-      navigate(-1)
+      navigate(-1);
     }
-  }
+  };
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col bg-slate-50 antialiased shadow-2xl">
@@ -87,22 +85,28 @@ export function AppLayout({ role, userProfile, _onLogout }) {
 
           {/* Profile Button */}
           <Link
-
             to="/profile"
             title={uz.nav.profile}
             className={`flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-bold transition-all active:scale-95 ${
               isProfileActive
-                ? 'bg-emerald-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
             }`}
           >
             {isAdmin ? (
-              <Shield size={14} className={isProfileActive ? 'text-white' : 'text-indigo-600'} />
+              <Shield
+                size={14}
+                className={isProfileActive ? "text-white" : "text-indigo-600"}
+              />
             ) : (
-              <User size={14} className={isProfileActive ? 'text-white' : 'text-emerald-600'} />
+              <User
+                size={14}
+                className={isProfileActive ? "text-white" : "text-emerald-600"}
+              />
             )}
             <span className="max-w-[85px] truncate">
-              {userProfile?.name?.split(' ')[0] || (isAdmin ? uz.roles.admin : uz.roles.staff)}
+              {userProfile?.name?.split(" ")[0] ||
+                (isAdmin ? uz.roles.admin : uz.roles.staff)}
             </span>
           </Link>
         </div>
@@ -116,14 +120,16 @@ export function AppLayout({ role, userProfile, _onLogout }) {
       {/* Persistent, mobile-optimized Bottom Navigation bar */}
       {/* CRITICAL HINT: Hide Xodimlar tab completely if the logged-in user's role is staff! Visible ONLY to admin. */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto max-w-lg border-t border-slate-200/90 bg-white/95 px-2 py-2 backdrop-blur-md shadow-lg">
-        <div className={`grid gap-1 ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <div
+          className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-2"}`}
+        >
           {/* 1. Sartaroshxonalar (Barbershops) */}
           <Link
             to="/sartaroshxonalar"
             className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
               isBarbershopsActive
-                ? 'bg-emerald-50 text-emerald-700 font-bold'
-                : 'text-slate-500 hover:text-slate-900 font-medium'
+                ? "bg-emerald-50 text-emerald-700 font-bold"
+                : "text-slate-500 hover:text-slate-900 font-medium"
             }`}
           >
             <Building2 size={20} />
@@ -137,8 +143,8 @@ export function AppLayout({ role, userProfile, _onLogout }) {
             to="/savdolar"
             className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
               isSalesActive
-                ? 'bg-emerald-50 text-emerald-700 font-bold'
-                : 'text-slate-500 hover:text-slate-900 font-medium'
+                ? "bg-emerald-50 text-emerald-700 font-bold"
+                : "text-slate-500 hover:text-slate-900 font-medium"
             }`}
           >
             <Receipt size={20} />
@@ -148,19 +154,21 @@ export function AppLayout({ role, userProfile, _onLogout }) {
           </Link>
 
           {/* 3. Statistikalar (Stats) */}
-          <Link
-            to="/statistika"
-            className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-              isStatsActive
-                ? 'bg-emerald-50 text-emerald-700 font-bold'
-                : 'text-slate-500 hover:text-slate-900 font-medium'
-            }`}
-          >
-            <BarChart3 size={20} />
-            <span className="text-[10px] mt-1 leading-none tracking-tight">
-              {uz.nav.stats}
-            </span>
-          </Link>
+          {isAdmin && (
+            <Link
+              to="/statistika"
+              className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                isStatsActive
+                  ? "bg-emerald-50 text-emerald-700 font-bold"
+                  : "text-slate-500 hover:text-slate-900 font-medium"
+              }`}
+            >
+              <BarChart3 size={20} />
+              <span className="text-[10px] mt-1 leading-none tracking-tight">
+                {uz.nav.stats}
+              </span>
+            </Link>
+          )}
 
           {/* 4. Xodimlar (Staff) -> CRITICAL HINT: ONLY visible to admin, hidden for staff */}
           {isAdmin && (
@@ -168,8 +176,8 @@ export function AppLayout({ role, userProfile, _onLogout }) {
               to="/xodimlar"
               className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
                 isStaffActive
-                  ? 'bg-emerald-50 text-emerald-700 font-bold'
-                  : 'text-slate-500 hover:text-slate-900 font-medium'
+                  ? "bg-emerald-50 text-emerald-700 font-bold"
+                  : "text-slate-500 hover:text-slate-900 font-medium"
               }`}
             >
               <Users size={20} />
@@ -181,5 +189,5 @@ export function AppLayout({ role, userProfile, _onLogout }) {
         </div>
       </nav>
     </div>
-  )
+  );
 }

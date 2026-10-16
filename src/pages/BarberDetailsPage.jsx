@@ -2,16 +2,14 @@ import React, { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
-  DollarSign,
   Package,
-  Phone,
   RotateCcw,
+  Phone,
   Scissors,
   Settings,
 } from "../components/icons";
 
 import { BarberModal } from "../components/BarberModal";
-import { BarberPaymentModal } from "../components/BarberPaymentModal";
 import { CONTRACT_TYPES } from "../constants/models";
 import { ROLES } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
@@ -40,20 +38,15 @@ export function BarberDetailsPage({
 
   const [activeTab, setActiveTab] = useState("info"); // 'info' | 'stats'
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-
-  // Delivery Modal State ("Sochiq berish")
-  const [isDeliveryOpen, setIsDeliveryOpen] = useState(false);
+  // Sale modal state ("Sotish")
+  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
+  const [saleType, setSaleType] = useState("delivery");
   const [deliveryQty, setDeliveryQty] = useState("");
-  const [deliveryPrice, setDeliveryPrice] = useState("");
   const [deliveryNote, setDeliveryNote] = useState("");
-  const [deliverySubmitting, setDeliverySubmitting] = useState(false);
-
-  // Return Modal State ("Sochiq olish")
-  const [isReturnOpen, setIsReturnOpen] = useState(false);
   const [returnQty, setReturnQty] = useState("");
   const [returnNote, setReturnNote] = useState("");
-  const [returnSubmitting, setReturnSubmitting] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [saleSubmitting, setSaleSubmitting] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -150,77 +143,68 @@ export function BarberDetailsPage({
     );
   }
 
-  // Handle Delivery Submission ("Sochiq berish")
-  const handleOpenDelivery = () => {
+  // Handle Sale Modal ("Sotish")
+  const handleOpenSale = () => {
+    setSaleType("delivery");
     setDeliveryQty("");
-    setDeliveryPrice(currentBarber.pricePerTowel || 3000);
     setDeliveryNote("");
-    setIsDeliveryOpen(true);
-  };
-
-  const handleDeliverySubmit = async (e) => {
-    e.preventDefault();
-    const qty = Number(deliveryQty);
-    const price = Number(deliveryPrice);
-    if (!qty || qty <= 0) return;
-
-    setDeliverySubmitting(true);
-    try {
-      await createSale({
-        barberId: currentBarber.id,
-        barbershopId: currentBarber.barbershopId,
-        staffId: userId,
-        staffName: userProfile?.name || (isAdmin ? "Admin" : "Xodim"),
-        barberName: currentBarber.name,
-        barbershopName: currentShop?.name || "",
-        quantityDelivered: qty,
-        unitPrice: price,
-        contractType: currentBarber.contractType,
-        note: deliveryNote,
-      });
-
-      setIsDeliveryOpen(false);
-      showToast(uz.barberDetails.deliverySuccess);
-    } catch (err) {
-      console.error("Delivery error:", err);
-      alert(uz.common.error);
-    } finally {
-      setDeliverySubmitting(false);
-    }
-  };
-
-  // Handle Return Submission ("Sochiq olish")
-  const handleOpenReturn = () => {
     setReturnQty("");
     setReturnNote("");
-    setIsReturnOpen(true);
+    setPaymentAmount("");
+    setIsSaleModalOpen(true);
   };
 
-  const handleReturnSubmit = async (e) => {
+  const handleSaleSubmit = async (e) => {
     e.preventDefault();
-    const qty = Number(returnQty);
-    if (!qty || qty <= 0) return;
+    const quantity = Number(saleType === "delivery" ? deliveryQty : returnQty);
+    const payment = Number(paymentAmount);
+    if ((!quantity || quantity <= 0) && (!payment || payment <= 0)) return;
 
-    setReturnSubmitting(true);
+    setSaleSubmitting(true);
     try {
-      await createReturn({
-        barberId: currentBarber.id,
-        barbershopId: currentBarber.barbershopId,
-        staffId: userId,
-        staffName: userProfile?.name || (isAdmin ? "Admin" : "Xodim"),
-        barberName: currentBarber.name,
-        barbershopName: currentShop?.name || "",
-        quantityReturned: qty,
-        note: returnNote,
-      });
+      if (quantity > 0 && saleType === "delivery") {
+        await createSale({
+          barberId: currentBarber.id,
+          barbershopId: currentBarber.barbershopId,
+          staffId: userId,
+          staffName: userProfile?.name || (isAdmin ? "Admin" : "Xodim"),
+          barberName: currentBarber.name,
+          barbershopName: currentShop?.name || "",
+          quantityDelivered: quantity,
+          unitPrice: currentBarber.pricePerTowel || 3000,
+          contractType: currentBarber.contractType,
+          note: deliveryNote,
+        });
+      } else if (quantity > 0) {
+        await createReturn({
+          barberId: currentBarber.id,
+          barbershopId: currentBarber.barbershopId,
+          staffId: userId,
+          staffName: userProfile?.name || (isAdmin ? "Admin" : "Xodim"),
+          barberName: currentBarber.name,
+          barbershopName: currentShop?.name || "",
+          quantityReturned: quantity,
+          note: returnNote,
+        });
+      }
 
-      setIsReturnOpen(false);
-      showToast(uz.barberDetails.returnSuccess);
+      if (payment > 0) {
+        await recordBarberPayment(currentBarber.id, payment);
+      }
+
+      setIsSaleModalOpen(false);
+      showToast(
+        quantity <= 0
+          ? uz.barberDetails.paymentSuccess
+          : saleType === "delivery"
+          ? uz.barberDetails.deliverySuccess
+          : uz.barberDetails.returnSuccess,
+      );
     } catch (err) {
-      console.error("Return error:", err);
+      console.error("Sale action error:", err);
       alert(uz.common.error);
     } finally {
-      setReturnSubmitting(false);
+      setSaleSubmitting(false);
     }
   };
 
@@ -232,11 +216,6 @@ export function BarberDetailsPage({
   const handleDeleteBarber = async (id) => {
     await deleteBarberCascade(id);
     navigate(`/sartaroshxonalar/${shopId}`, { replace: true });
-  };
-
-  const handlePaymentSave = async (id, amount) => {
-    await recordBarberPayment(id, amount);
-    showToast("To'lov muvaffaqiyatli qabul qilindi!");
   };
 
   return (
@@ -286,26 +265,15 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* 2 Quick Action Buttons on Top: "Sochiq berish" & "Sochiq olish" */}
-        <div className="mt-4 grid grid-cols-2 gap-2.5">
-          {/* Action 1: "Sochiq berish" (Delivery) */}
+        {/* Unified sale action: use it once for delivery and again when towels are returned */}
+        <div className="mt-4">
           <button
             type="button"
-            onClick={handleOpenDelivery}
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-3 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
+            onClick={handleOpenSale}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-3 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
           >
             <Package size={16} />
-            {uz.barberDetails.giveTowels}
-          </button>
-
-          {/* Action 2: "Sochiq olish" (Return) */}
-          <button
-            type="button"
-            onClick={handleOpenReturn}
-            className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-600 to-sky-700 px-3 py-3 text-xs font-bold text-white shadow-xs hover:from-sky-700 hover:to-sky-800 active:scale-98 transition-all"
-          >
-            <RotateCcw size={16} />
-            {uz.barberDetails.receiveTowels}
+            {uz.barberDetails.saleBtn}
           </button>
         </div>
       </div>
@@ -392,17 +360,6 @@ export function BarberDetailsPage({
               </div>
             </div>
 
-            {/* Settle Payment Button */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setIsPaymentModalOpen(true)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 active:scale-98 transition-all"
-              >
-                <DollarSign size={15} />
-                {uz.barberDetails.settlePaymentBtn}
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -542,8 +499,8 @@ export function BarberDetailsPage({
         </div>
       )}
 
-      {/* Delivery Quick Modal ("Sochiq berish") */}
-      {isDeliveryOpen && (
+      {/* Unified Sale Modal ("Sotish") */}
+      {isSaleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -552,149 +509,89 @@ export function BarberDetailsPage({
                   <Package size={18} />
                 </div>
                 <h3 className="text-base font-bold text-slate-900">
-                  {uz.barberDetails.giveTowelsTitle}
+                  {uz.barberDetails.saleTitle}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setIsDeliveryOpen(false)}
+                onClick={() => setIsSaleModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleDeliverySubmit} className="mt-4 space-y-3">
+            <div className="mt-4 grid grid-cols-2 rounded-xl bg-slate-100 p-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setSaleType("delivery")}
+                className={`rounded-lg py-2 transition-all ${
+                  saleType === "delivery"
+                    ? "bg-white text-emerald-700 shadow-xs"
+                    : "text-slate-600"
+                }`}
+              >
+                {uz.barberDetails.giveTowels}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaleType("return")}
+                className={`rounded-lg py-2 transition-all ${
+                  saleType === "return"
+                    ? "bg-white text-sky-700 shadow-xs"
+                    : "text-slate-600"
+                }`}
+              >
+                {uz.barberDetails.receiveTowels}
+              </button>
+            </div>
+
+            <form onSubmit={handleSaleSubmit} className="mt-4 space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {uz.barberDetails.deliveryQtyLabel} *
+                  {saleType === "delivery"
+                    ? uz.barberDetails.deliveryQtyLabel
+                    : uz.barberDetails.returnQtyLabel}{" "}
+                  *
                 </label>
                 <input
                   type="number"
                   min="1"
-                  required
                   autoFocus
-                  value={deliveryQty}
-                  onChange={(e) => setDeliveryQty(e.target.value)}
-                  placeholder="Masalan: 30"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                  value={saleType === "delivery" ? deliveryQty : returnQty}
+                  onChange={(e) =>
+                    saleType === "delivery"
+                      ? setDeliveryQty(e.target.value)
+                      : setReturnQty(e.target.value)
+                  }
+                  placeholder={saleType === "delivery" ? "Masalan: 30" : "Masalan: 25"}
+                  className={`w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none ${
+                    saleType === "delivery"
+                      ? "focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      : "focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
+                  }`}
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.barberDetails.unitPriceLabel} *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="100"
-                  required
-                  value={deliveryPrice}
-                  onChange={(e) => setDeliveryPrice(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Total Calculation */}
-              {Number(deliveryQty) > 0 && (
+              {saleType === "delivery" && Number(deliveryQty) > 0 && (
                 <div className="rounded-xl bg-emerald-50/80 p-3 border border-emerald-200 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-emerald-800 font-medium">
-                      Jami savdo summasi:
+                      {uz.barberDetails.totalAmountLabel}:
                     </span>
                     <span className="text-sm font-extrabold text-emerald-950">
                       {(
-                        Number(deliveryQty) * Number(deliveryPrice || 0)
+                        Number(deliveryQty) *
+                        (currentBarber.pricePerTowel || 3000)
                       ).toLocaleString()}{" "}
                       {uz.common.sum}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] text-emerald-700">
-                    {currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_TAKEN
-                      ? "Olingan sochiq uchun: Summa sartarosh qarziga qo'shiladi"
-                      : "Ishlatilgan sochiq uchun: Summa faqat qaytarilganda hisoblanadi"}
-                  </p>
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.barberDetails.noteLabel}
-                </label>
-                <input
-                  type="text"
-                  value={deliveryNote}
-                  onChange={(e) => setDeliveryNote(e.target.value)}
-                  placeholder="Ixtiyoriy izoh..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsDeliveryOpen(false)}
-                  className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {uz.common.cancel}
-                </button>
-                <button
-                  type="submit"
-                  disabled={deliverySubmitting || !deliveryQty}
-                  className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  {deliverySubmitting
-                    ? uz.common.loading
-                    : uz.barberDetails.recordDeliveryBtn}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Return Quick Modal ("Sochiq olish") */}
-      {isReturnOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
-                  <RotateCcw size={18} />
-                </div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {uz.barberDetails.receiveTowelsTitle}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsReturnOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleReturnSubmit} className="mt-4 space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {uz.barberDetails.returnQtyLabel} *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  autoFocus
-                  value={returnQty}
-                  onChange={(e) => setReturnQty(e.target.value)}
-                  placeholder="Masalan: 25"
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-                />
-              </div>
-
-              {/* If pay for used, display calculated fee */}
-              {currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED &&
+              {saleType === "return" &&
+                currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED &&
                 Number(returnQty) > 0 && (
                   <div className="rounded-xl bg-sky-50/80 p-3 border border-sky-200 text-xs">
                     <div className="flex items-center justify-between">
@@ -718,33 +615,67 @@ export function BarberDetailsPage({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {uz.barberDetails.paymentAmountLabel}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    placeholder="Masalan: 50000"
+                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500"
+                  />
+                  <span className="absolute right-3 top-2.5 text-xs text-slate-400">
+                    {uz.common.sum}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   {uz.barberDetails.noteLabel}
                 </label>
                 <input
                   type="text"
-                  value={returnNote}
-                  onChange={(e) => setReturnNote(e.target.value)}
+                  value={saleType === "delivery" ? deliveryNote : returnNote}
+                  onChange={(e) =>
+                    saleType === "delivery"
+                      ? setDeliveryNote(e.target.value)
+                      : setReturnNote(e.target.value)
+                  }
                   placeholder="Ixtiyoriy izoh..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-sky-500"
+                  className={`w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none ${
+                    saleType === "delivery"
+                      ? "focus:border-emerald-500"
+                      : "focus:border-sky-500"
+                  }`}
                 />
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setIsReturnOpen(false)}
+                  onClick={() => setIsSaleModalOpen(false)}
                   className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   {uz.common.cancel}
                 </button>
                 <button
                   type="submit"
-                  disabled={returnSubmitting || !returnQty}
-                  className="rounded-xl bg-sky-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-sky-700 disabled:opacity-60"
+                  disabled={
+                    saleSubmitting ||
+                    (!(saleType === "delivery" ? deliveryQty : returnQty) &&
+                      !paymentAmount)
+                  }
+                  className={`rounded-xl py-2.5 text-xs font-bold text-white shadow-xs disabled:opacity-60 ${
+                    saleType === "delivery"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-sky-600 hover:bg-sky-700"
+                  }`}
                 >
-                  {returnSubmitting
-                    ? uz.common.loading
-                    : uz.barberDetails.recordReturnBtn}
+                  {saleSubmitting ? uz.common.loading : uz.common.confirm}
                 </button>
               </div>
             </form>
@@ -763,14 +694,6 @@ export function BarberDetailsPage({
         />
       )}
 
-      {/* Barber Payment Modal */}
-      {isPaymentModalOpen && (
-        <BarberPaymentModal
-          barber={currentBarber}
-          onSave={handlePaymentSave}
-          onClose={() => setIsPaymentModalOpen(false)}
-        />
-      )}
     </div>
   );
 }

@@ -1,49 +1,48 @@
-import React, { useState } from 'react'
-import { Check, Users, X } from './icons'
-import { ROLES } from '../constants/roles'
-import { uz } from '../i18n/uz'
-import { isValidPhone, normalizePhone } from '../utils/auth'
+import React, { useState } from "react";
+import { Check, Users, X } from "./icons";
+import { ROLES } from "../constants/roles";
+import { uz } from "../i18n/uz";
+import { isValidPhone, normalizePhone } from "../utils/auth";
 
 export function StaffModal({ onSave, onClose }) {
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
-  const [role, setRole] = useState(ROLES.STAFF)
-  const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    const cleanPhone = normalizePhone(phone)
+    e.preventDefault();
+    const cleanPhone = normalizePhone(phone);
 
     if (!isValidPhone(cleanPhone)) {
-      setError(uz.login.phoneError)
-      return
+      setError(uz.login.phoneError);
+      return;
     }
 
     if (password.length < 6) {
-      setError('Parol kamida 6 ta belgidan iborat bo\'lishi shart')
-      return
+      setError("Parol kamida 6 ta belgidan iborat bo'lishi shart");
+      return;
     }
 
-    setError('')
-    setSaving(true)
+    setError("");
+    setSaving(true);
 
     try {
       await onSave({
         name: name.trim(),
         phone: cleanPhone,
         password,
-        role,
-      })
-      onClose()
+        role: ROLES.STAFF,
+      });
+      onClose();
     } catch (err) {
-      console.error(err)
-      setError(err.message || uz.common.error)
+      console.error(err);
+      setError(err.message || uz.common.error);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
@@ -53,7 +52,9 @@ export function StaffModal({ onSave, onClose }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
               <Users size={18} />
             </div>
-            <h3 className="text-base font-semibold text-slate-900">{uz.admin.staff.addBtn}</h3>
+            <h3 className="text-base font-semibold text-slate-900">
+              {uz.admin.staff.addBtn}
+            </h3>
           </div>
           <button
             onClick={onClose}
@@ -114,59 +115,6 @@ export function StaffModal({ onSave, onClose }) {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              {uz.admin.staff.roleLabel} *
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <label
-                className={`flex flex-col p-3 rounded-xl border cursor-pointer ${
-                  role === ROLES.STAFF
-                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="role"
-                    value={ROLES.STAFF}
-                    checked={role === ROLES.STAFF}
-                    onChange={() => setRole(ROLES.STAFF)}
-                    className="text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-xs font-bold">{uz.roles.staff}</span>
-                </div>
-                <span className="mt-1 text-[11px] text-slate-500 leading-tight">
-                  Savdo va qaytarim qiladi
-                </span>
-              </label>
-
-              <label
-                className={`flex flex-col p-3 rounded-xl border cursor-pointer ${
-                  role === ROLES.ADMIN
-                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="radio"
-                    name="role"
-                    value={ROLES.ADMIN}
-                    checked={role === ROLES.ADMIN}
-                    onChange={() => setRole(ROLES.ADMIN)}
-                    className="text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-xs font-bold">{uz.roles.admin}</span>
-                </div>
-                <span className="mt-1 text-[11px] text-slate-500 leading-tight">
-                  To'liq boshqaruv
-                </span>
-              </label>
-            </div>
-          </div>
-
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           <div className="mt-5 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
@@ -189,5 +137,5 @@ export function StaffModal({ onSave, onClose }) {
         </form>
       </div>
     </div>
-  )
+  );
 }

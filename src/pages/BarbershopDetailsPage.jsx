@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import React, { useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   Building2,
   ChevronRight,
@@ -9,20 +9,20 @@ import {
   Plus,
   Scissors,
   Settings,
-} from '../components/icons'
+} from "../components/icons";
 
-import { BarberModal } from '../components/BarberModal'
-import { BarbershopModal } from '../components/BarbershopModal'
-import { CONTRACT_TYPES } from '../constants/models'
-import { ROLES } from '../constants/roles'
-import { useHeader } from '../context/HeaderContext'
-import { uz } from '../i18n/uz'
+import { BarberModal } from "../components/BarberModal";
+import { BarbershopModal } from "../components/BarbershopModal";
+import { CONTRACT_TYPES } from "../constants/models";
+import { ROLES } from "../constants/roles";
+import { useHeader } from "../context/HeaderContext";
+import { uz } from "../i18n/uz";
 import {
   createBarber,
   deleteBarbershopCascade,
   updateBarbershop,
-} from '../services/firestoreService'
-import { formatPhoneDisplay } from '../utils/auth'
+} from "../services/firestoreService";
+import { formatPhoneDisplay } from "../utils/auth";
 
 export function BarbershopDetailsPage({
   role,
@@ -31,20 +31,20 @@ export function BarbershopDetailsPage({
   sales = [],
   returns = [],
 }) {
-  const { shopId } = useParams()
-  const navigate = useNavigate()
-  const isAdmin = role === ROLES.ADMIN
+  const { shopId } = useParams();
+  const navigate = useNavigate();
+  const isAdmin = role === ROLES.ADMIN;
 
-  const [isEditShopModalOpen, setIsEditShopModalOpen] = useState(false)
-  const [isAddBarberModalOpen, setIsAddBarberModalOpen] = useState(false)
+  const [isEditShopModalOpen, setIsEditShopModalOpen] = useState(false);
+  const [isAddBarberModalOpen, setIsAddBarberModalOpen] = useState(false);
 
   const currentShop = useMemo(() => {
-    return barbershops.find((s) => s.id === shopId)
-  }, [barbershops, shopId])
+    return barbershops.find((s) => s.id === shopId);
+  }, [barbershops, shopId]);
 
   const shopBarbers = useMemo(() => {
-    return barbers.filter((b) => b.barbershopId === shopId)
-  }, [barbers, shopId])
+    return barbers.filter((b) => b.barbershopId === shopId);
+  }, [barbers, shopId]);
 
   const hasLocation = Boolean(
     currentShop?.latitude !== null &&
@@ -52,112 +52,111 @@ export function BarbershopDetailsPage({
     !isNaN(currentShop?.latitude) &&
     currentShop?.longitude !== null &&
     currentShop?.longitude !== undefined &&
-    !isNaN(currentShop?.longitude)
-  )
+    !isNaN(currentShop?.longitude),
+  );
 
   // Calculate towels held per barber (delivered - returned)
   const barberTowelsHeldMap = useMemo(() => {
-    const map = {}
+    const map = {};
     shopBarbers.forEach((b) => {
-      map[b.id] = 0
-    })
+      map[b.id] = 0;
+    });
 
     sales.forEach((s) => {
       if (s.barberId && map[s.barberId] !== undefined) {
-        map[s.barberId] += Number(s.quantityDelivered) || 0
+        map[s.barberId] += Number(s.quantityDelivered) || 0;
       }
-    })
+    });
 
     returns.forEach((r) => {
       if (r.barberId && map[r.barberId] !== undefined) {
-        map[r.barberId] -= Number(r.quantityReturned) || 0
+        map[r.barberId] -= Number(r.quantityReturned) || 0;
       }
-    })
+    });
 
-    return map
-  }, [shopBarbers, sales, returns])
+    return map;
+  }, [shopBarbers, sales, returns]);
 
   // Open external navigation apps using coordinates
   const handleOpenNavigation = () => {
-    if (!hasLocation || !currentShop) return
-    const lat = currentShop.latitude
-    const lng = currentShop.longitude
-    const name = currentShop.name
+    if (!hasLocation || !currentShop) return;
+    const lat = currentShop.latitude;
+    const lng = currentShop.longitude;
+    const name = currentShop.name;
 
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     if (isMobile) {
-      window.location.href = `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name)})`
+      window.location.href = `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(name)})`;
       setTimeout(() => {
-        window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank')
-      }, 1500)
+        window.open(
+          `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+          "_blank",
+        );
+      }, 1500);
     } else {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank')
+      window.open(
+        `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+        "_blank",
+      );
     }
-  }
+  };
 
   const handleUpdateShop = async (data) => {
-    if (!shopId) return
-    await updateBarbershop(shopId, data)
-  }
+    if (!shopId) return;
+    await updateBarbershop(shopId, data);
+  };
 
   const handleDeleteShop = async (id) => {
-    await deleteBarbershopCascade(id)
-    navigate('/sartaroshxonalar', { replace: true })
-  }
+    await deleteBarbershopCascade(id);
+    navigate("/sartaroshxonalar", { replace: true });
+  };
 
   const handleCreateBarber = async (data) => {
-    await createBarber({ ...data, barbershopId: shopId })
-  }
+    await createBarber({ ...data, barbershopId: shopId });
+  };
 
   // Header configuration
-  useHeader({
-    title: currentShop ? currentShop.name : uz.nav.barbershops,
-    subtitle: currentShop?.address || null,
-    showBack: true,
-    backTo: '/sartaroshxonalar',
-    actions: (
-      <div className="flex items-center gap-1.5">
-        {/* Map Icon: ONLY shown if location coordinates are set */}
-        {hasLocation && (
-          <button
-            type="button"
-            onClick={handleOpenNavigation}
-            title={uz.barbershopDetails.openInMap}
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 active:scale-95 transition-all border border-emerald-200"
-          >
-            <Navigation size={16} />
-          </button>
-        )}
-
-        {/* Admin Gear Icon: ONLY shown if user is admin */}
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={() => setIsEditShopModalOpen(true)}
-            title={uz.barbershopDetails.editShop}
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
-          >
-            <Settings size={16} />
-          </button>
-        )}
-      </div>
-    ),
-  }, [currentShop, hasLocation, isAdmin])
+  useHeader(
+    {
+      title: currentShop ? currentShop.name : uz.nav.barbershops,
+      subtitle: currentShop?.address || null,
+      showBack: true,
+      backTo: "/sartaroshxonalar",
+      actions: isAdmin ? (
+        <div className="flex items-center gap-1.5">
+          {/* Admin Gear Icon: ONLY shown if user is admin */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setIsEditShopModalOpen(true)}
+              title={uz.barbershopDetails.editShop}
+              className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
+            >
+              <Settings size={16} />
+            </button>
+          )}
+        </div>
+      ) : null,
+    },
+    [currentShop, hasLocation, isAdmin],
+  );
 
   if (!currentShop) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <Building2 size={32} className="mx-auto text-slate-300 mb-2" />
-        <p className="text-sm font-bold text-slate-800">Sartaroshxona topilmadi</p>
+        <p className="text-sm font-bold text-slate-800">
+          Sartaroshxona topilmadi
+        </p>
         <button
           type="button"
-          onClick={() => navigate('/sartaroshxonalar')}
+          onClick={() => navigate("/sartaroshxonalar")}
           className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs"
         >
           {uz.barbershopDetails.backToShops}
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -166,7 +165,9 @@ export function BarbershopDetailsPage({
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-extrabold text-slate-900">{currentShop.name}</h2>
+            <h2 className="text-lg font-extrabold text-slate-900">
+              {currentShop.name}
+            </h2>
             {currentShop.address && (
               <p className="text-xs text-slate-600 mt-0.5 flex items-center gap-1">
                 <MapPin size={13} className="text-slate-400 shrink-0" />
@@ -225,7 +226,9 @@ export function BarbershopDetailsPage({
         {shopBarbers.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
             <Scissors size={28} className="mx-auto text-slate-300 mb-2" />
-            <p className="text-xs font-semibold text-slate-700">{uz.barbershopDetails.noBarbers}</p>
+            <p className="text-xs font-semibold text-slate-700">
+              {uz.barbershopDetails.noBarbers}
+            </p>
             {isAdmin && (
               <button
                 type="button"
@@ -239,14 +242,16 @@ export function BarbershopDetailsPage({
           </div>
         ) : (
           shopBarbers.map((barber) => {
-            const heldTowels = Math.max(0, barberTowelsHeldMap[barber.id] || 0)
-            const debt = Number(barber.debt) || 0
-            const overpaid = Number(barber.overpaid) || 0
+            const heldTowels = Math.max(0, barberTowelsHeldMap[barber.id] || 0);
+            const debt = Number(barber.debt) || 0;
+            const overpaid = Number(barber.overpaid) || 0;
 
             return (
               <div
                 key={barber.id}
-                onClick={() => navigate(`/sartaroshxonalar/${shopId}/barber/${barber.id}`)}
+                onClick={() =>
+                  navigate(`/sartaroshxonalar/${shopId}/barber/${barber.id}`)
+                }
                 className="group cursor-pointer rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs transition-all hover:border-emerald-300 hover:shadow-md active:scale-98"
               >
                 <div className="flex items-start justify-between gap-2">
@@ -265,14 +270,16 @@ export function BarbershopDetailsPage({
                         </p>
                       )}
                       <div className="mt-1">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                          barber.contractType === CONTRACT_TYPES.PAY_FOR_USED
-                            ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            barber.contractType === CONTRACT_TYPES.PAY_FOR_USED
+                              ? "bg-sky-50 text-sky-700 border border-sky-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          }`}
+                        >
                           {barber.contractType === CONTRACT_TYPES.PAY_FOR_USED
-                            ? 'Ishlatilgan sochiqqa'
-                            : 'Olingan sochiqqa'}
+                            ? "Ishlatilgan sochiqqa"
+                            : "Olingan sochiqqa"}
                         </span>
                       </div>
                     </div>
@@ -299,7 +306,7 @@ export function BarbershopDetailsPage({
                       {uz.barbershopDetails.currentDebt}
                     </span>
                     <span className="text-xs font-bold text-red-900 truncate block">
-                      {debt > 0 ? `${debt.toLocaleString()} so'm` : '0'}
+                      {debt > 0 ? `${debt.toLocaleString()} so'm` : "0"}
                     </span>
                   </div>
 
@@ -308,12 +315,12 @@ export function BarbershopDetailsPage({
                       {uz.barbershopDetails.overpaid}
                     </span>
                     <span className="text-xs font-bold text-sky-900 truncate block">
-                      {overpaid > 0 ? `${overpaid.toLocaleString()} so'm` : '0'}
+                      {overpaid > 0 ? `${overpaid.toLocaleString()} so'm` : "0"}
                     </span>
                   </div>
                 </div>
               </div>
-            )
+            );
           })
         )}
       </div>
@@ -338,5 +345,5 @@ export function BarbershopDetailsPage({
         />
       )}
     </div>
-  )
+  );
 }
