@@ -1,4 +1,4 @@
-import { getToken, onMessage } from 'firebase/messaging'
+import { onMessage, onRegistered, register } from 'firebase/messaging'
 import { arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { db, firebaseConfig, getFirebaseMessaging } from '../config/firebase'
 import { COLLECTIONS } from '../constants/models'
@@ -8,6 +8,8 @@ export async function registerFcmForAdmin(uid) {
   if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
     return { success: false, reason: 'unsupported' }
   }
+
+  let unsubscribeRegistered = () => {}
 
   try {
     const permission = await Notification.requestPermission()
@@ -38,26 +40,34 @@ export async function registerFcmForAdmin(uid) {
       scope: '/',
     })
 
-    const token = await getToken(messaging, {
-      serviceWorkerRegistration: registration,
-    }).catch((err) => {
-      console.warn('FCM Token olishda xatolik:', err)
-      return null
+    const registrationIdPromise = new Promise((resolve) => {
+      unsubscribeRegistered = onRegistered(messaging, resolve)
     })
 
-    if (token && uid) {
+    await register(messaging, {
+      serviceWorkerRegistration: registration,
+      ...(firebaseConfig.messagingVapidKey
+        ? { vapidKey: firebaseConfig.messagingVapidKey }
+        : {}),
+    })
+
+    const registrationId = await registrationIdPromise
+    unsubscribeRegistered()
+
+    if (registrationId && uid) {
       const userRef = doc(db, COLLECTIONS.USERS, uid)
       const userSnap = await getDoc(userRef)
       if (userSnap.exists()) {
         await updateDoc(userRef, {
-          fcmTokens: arrayUnion(token),
+          fcmTokens: arrayUnion(registrationId),
         })
       }
-      return { success: true, token, permission }
+      return { success: true, token: registrationId, permission }
     }
 
-    return { success: !!token, token, permission }
+    return { success: !!registrationId, token: registrationId, permission }
   } catch (error) {
+    unsubscribeRegistered()
     console.error('FCM ro\'yxatdan o\'tkazish xatosi:', error)
     return { success: false, error }
   }
@@ -88,12 +98,11 @@ export async function setupForegroundNotifications(onReceive) {
 
 export function triggerLocalTestNotification() {
   if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification(uz.fcm.newSaleTitle, {
-      body: uz.notifications.pushSaleBody('Alisher', 'Jasur', 20, 60000),
+    new Notification(uz.fcm.statusActive, {
+      body: uz.fcm.statusActive,
       icon: '/favicon.svg',
     })
     return true
   }
   return false
 }
-

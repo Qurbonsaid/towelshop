@@ -54,8 +54,12 @@ export function AppLayout({ role, userProfile, _onLogout }) {
               <ArrowLeft size={18} />
             </button>
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs">
-              <Package size={18} />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-300 text-slate-700">
+              <img
+                src="/favicon.svg"
+                alt="Logo"
+                className="h-full w-full object-contain"
+              />
             </div>
           )}
 

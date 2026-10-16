@@ -1,46 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Download, Package, X } from "./icons";
-
-const isRunningStandalone = () => {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    window.navigator.standalone === true
-  );
-};
+import {
+  consumeDeferredPwaPrompt,
+  subscribeToPwaInstall,
+} from "../utils/pwaInstall";
 
 export function InstallPwaButton() {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstalled, setIsInstalled] = useState(isRunningStandalone);
+  const [isInstalled, setIsInstalled] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
-    if (isRunningStandalone()) {
-      return;
-    }
-
-    // Capture beforeinstallprompt event if supported and not yet installed
-
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-    };
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    window.addEventListener("appinstalled", handleAppInstalled);
-
-    return () => {
-      window.removeEventListener(
-        "beforeinstallprompt",
-        handleBeforeInstallPrompt,
-      );
-      window.removeEventListener("appinstalled", handleAppInstalled);
-    };
+    return subscribeToPwaInstall(({ installed }) => {
+      setIsInstalled(installed);
+    });
   }, []);
 
   // If already installed, hide the install button
@@ -49,14 +21,14 @@ export function InstallPwaButton() {
   }
 
   const handleInstallClick = async () => {
-    if (deferredPrompt) {
+    const prompt = consumeDeferredPwaPrompt();
+    if (prompt) {
       try {
-        await deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
+        await prompt.prompt();
+        const choiceResult = await prompt.userChoice;
         if (choiceResult?.outcome === "accepted") {
           setIsInstalled(true);
         }
-        setDeferredPrompt(null);
       } catch (err) {
         console.warn("PWA install prompt error:", err);
         setShowModal(true);
