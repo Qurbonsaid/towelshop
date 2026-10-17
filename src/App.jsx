@@ -43,7 +43,6 @@ function App() {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [foregroundToast, setForegroundToast] = useState(null);
-  const seenRealtimeActions = useRef(null);
 
   // Real-time collections shared across app
   const [barbershops, setBarbershops] = useState([]);
