@@ -4,6 +4,26 @@ import { db, firebaseConfig, getFirebaseMessaging } from '../config/firebase'
 import { COLLECTIONS } from '../constants/models'
 import { uz } from '../i18n/uz'
 
+async function showServiceWorkerNotification(title, options = {}) {
+  if (
+    typeof window === 'undefined' ||
+    !('Notification' in window) ||
+    !('serviceWorker' in navigator) ||
+    Notification.permission !== 'granted'
+  ) {
+    return false
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready
+    await registration.showNotification(title, options)
+    return true
+  } catch (error) {
+    console.warn('Bildirishnomani ko\'rsatishda xatolik:', error)
+    return false
+  }
+}
+
 export async function registerFcmForAdmin(uid) {
   if (typeof window === 'undefined' || !('Notification' in window) || !('serviceWorker' in navigator)) {
     return { success: false, reason: 'unsupported' }
@@ -30,6 +50,7 @@ export async function registerFcmForAdmin(uid) {
     if (firebaseConfig.storageBucket) params.set('storageBucket', firebaseConfig.storageBucket)
     if (firebaseConfig.messagingSenderId) params.set('messagingSenderId', firebaseConfig.messagingSenderId)
     if (firebaseConfig.appId) params.set('appId', firebaseConfig.appId)
+    if (firebaseConfig.messagingVapidKey) params.set('messagingVapidKey', firebaseConfig.messagingVapidKey)
 
     const swUrl = params.toString()
       ? `/firebase-messaging-sw.js?${params.toString()}`
@@ -82,7 +103,7 @@ export async function setupForegroundNotifications(onReceive) {
       if (onReceive) {
         onReceive(payload)
       } else if (Notification.permission === 'granted') {
-        new Notification(payload.notification?.title || uz.fcm.newSaleTitle, {
+        showServiceWorkerNotification(payload.notification?.title || uz.fcm.newSaleTitle, {
           body: payload.notification?.body,
           icon: '/favicon.svg',
         })
@@ -97,12 +118,8 @@ export async function setupForegroundNotifications(onReceive) {
 }
 
 export function triggerLocalTestNotification() {
-  if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-    new Notification(uz.fcm.statusActive, {
-      body: uz.fcm.statusActive,
-      icon: '/favicon.svg',
-    })
-    return true
-  }
-  return false
+  return showServiceWorkerNotification(uz.fcm.statusActive, {
+    body: uz.fcm.statusActive,
+    icon: '/favicon.svg',
+  })
 }

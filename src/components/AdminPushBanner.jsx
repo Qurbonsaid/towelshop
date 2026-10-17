@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Bell, BellRing } from "./icons";
 import { uz } from "../i18n/uz";
 import {
@@ -14,23 +14,19 @@ export function AdminPushBanner({ adminUid }) {
   );
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "granted" && adminUid) {
-        registerFcmForAdmin(adminUid);
-        triggerLocalTestNotification();
-      }
-    }
-  }, [adminUid]);
-
   const handleEnablePush = async () => {
     setLoading(true);
     await registerFcmForAdmin(adminUid);
+    await triggerLocalTestNotification();
     if (typeof window !== "undefined" && "Notification" in window) {
       setPermission(Notification.permission);
     }
     setLoading(false);
   };
+
+  if (permission === "granted") {
+    return null; // Don't show the banner if permission is already granted
+  }
 
   if (permission === "denied") {
     return (

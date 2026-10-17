@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   BarChart3,
   Building2,
-  Package,
   Receipt,
   Shield,
   User,

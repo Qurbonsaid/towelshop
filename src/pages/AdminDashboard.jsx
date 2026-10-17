@@ -461,7 +461,7 @@ export function AdminDashboard({ adminUser }) {
                     <div className="text-right">
                       <div className="inline-flex items-center gap-1 rounded-xl bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 border border-sky-200">
                         <RotateCcw size={13} />
-                        <span>{item.quantityReturned} {uz.common.pcs}</span>
+                        <span>{item.returnedTowels} {uz.common.pcs}</span>
                       </div>
                     </div>
                   </div>
@@ -764,6 +764,7 @@ export function AdminDashboard({ adminUser }) {
       {isShopModalOpen && (
         <BarbershopModal
           barbershop={selectedShop}
+          isAdmin
           onSave={handleSaveShop}
           onClose={() => {
             setIsShopModalOpen(false)
@@ -776,6 +777,7 @@ export function AdminDashboard({ adminUser }) {
         <BarberModal
           barber={selectedBarber}
           barbershops={barbershops}
+          isAdmin
           onSave={handleSaveBarber}
           onClose={() => {
             setIsBarberModalOpen(false)

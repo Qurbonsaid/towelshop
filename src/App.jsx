@@ -43,6 +43,7 @@ function App() {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
   const [foregroundToast, setForegroundToast] = useState(null);
+  const seenRealtimeActions = useRef(null);
 
   // Real-time collections shared across app
   const [barbershops, setBarbershops] = useState([]);
@@ -121,7 +122,6 @@ function App() {
       unsubUsers();
     };
   }, [user, role]);
-
   const handleLogin = async (phone, password) => {
     const result = await loginWithPhone(phone, password);
     setUser(result.user);

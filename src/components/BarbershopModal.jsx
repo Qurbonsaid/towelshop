@@ -1,16 +1,51 @@
-import React, { useState } from 'react'
-import { AlertCircle, Building2, Check, MapPin, Trash2, X } from './icons'
+import React, { useEffect, useState } from 'react'
+import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet'
+import { AlertCircle, Building2, Check, MapPin, Navigation, Trash2, X } from './icons'
 
 import { uz } from '../i18n/uz'
-import { MapLocationPickerModal } from './MapLocationPickerModal'
 
-export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
+const DEFAULT_CENTER = [37.477, 67.1113]
+
+function MapPositionHandler({ position, onPositionChange }) {
+  const map = useMapEvents({
+    click(event) {
+      const { lat, lng } = event.latlng
+      onPositionChange([Number(lat.toFixed(6)), Number(lng.toFixed(6))])
+      map.flyTo(event.latlng, map.getZoom())
+    },
+  })
+
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, map.getZoom(), { duration: 0.6 })
+    }
+  }, [map, position])
+
+  return position ? (
+    <Marker
+      draggable
+      eventHandlers={{
+        dragend(event) {
+          const latlng = event.target.getLatLng()
+          onPositionChange([
+            Number(latlng.lat.toFixed(6)),
+            Number(latlng.lng.toFixed(6)),
+          ])
+        },
+      }}
+      position={position}
+    />
+  ) : null
+}
+
+export function BarbershopModal({ barbershop, isAdmin = false, onSave, onDelete, onClose }) {
   const [name, setName] = useState(barbershop?.name || '')
-  const [address, setAddress] = useState(barbershop?.address || '')
-  const [phone, setPhone] = useState(barbershop?.phone || '')
-  const [latitude, setLatitude] = useState(barbershop?.latitude ?? '')
-  const [longitude, setLongitude] = useState(barbershop?.longitude ?? '')
-  const [showMapPicker, setShowMapPicker] = useState(false)
+  const [position, setPosition] = useState(
+    barbershop?.latitude != null && barbershop?.longitude != null
+      ? [Number(barbershop.latitude), Number(barbershop.longitude)]
+      : null,
+  )
+  const [locating, setLocating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [verificationInput, setVerificationInput] = useState('')
@@ -24,10 +59,8 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
     try {
       await onSave({
         name: name.trim(),
-        address: address.trim(),
-        phone: phone.trim(),
-        latitude: latitude !== '' && !isNaN(latitude) ? Number(latitude) : null,
-        longitude: longitude !== '' && !isNaN(longitude) ? Number(longitude) : null,
+        latitude: position ? position[0] : null,
+        longitude: position ? position[1] : null,
       })
       onClose()
     } catch (err) {
@@ -58,15 +91,34 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
   }
 
 
-  const handleLocationPicked = ({ latitude: lat, longitude: lng }) => {
-    setLatitude(lat)
-    setLongitude(lng)
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Brauzeringiz geolokatsiyani qo'llab-quvvatlamaydi")
+      return
+    }
+
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setPosition([
+          Number(coords.latitude.toFixed(6)),
+          Number(coords.longitude.toFixed(6)),
+        ])
+        setLocating(false)
+      },
+      (error) => {
+        console.warn('Geolokatsiya xatosi:', error)
+        setLocating(false)
+        alert("Joriy joylashuvni aniqlab bo'lmadi. Xaritadan belgilang.")
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
   }
 
   return (
     <>
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-        <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
@@ -85,7 +137,7 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
             </button>
           </div>
 
-          <form className="mt-4 space-y-3.5" onSubmit={handleSubmit}>
+          <form className="overflow-y-auto p-5 pt-4 space-y-3.5" onSubmit={handleSubmit}>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {uz.admin.barbershops.nameLabel} *
@@ -101,73 +153,44 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {uz.admin.barbershops.addressLabel}
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder={uz.admin.barbershops.addressPlaceholder}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {uz.admin.barbershops.phoneLabel}
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={uz.admin.barbershops.phonePlaceholder}
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-              />
-            </div>
-
-            {/* Location selector via Leaflet modal */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="mb-1 flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-700">
                   {uz.admin.barbershops.locationLabel}
                 </label>
                 <button
                   type="button"
-                  onClick={() => setShowMapPicker(true)}
-                  className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                  onClick={handleGetCurrentLocation}
+                  disabled={locating}
+                  className="flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-60"
                 >
-                  <MapPin size={13} />
-                  {uz.admin.barbershops.pickLocation}
+                  <Navigation size={13} className={locating ? 'animate-spin' : ''} />
+                  {locating ? uz.common.loading : uz.map.getMyLocation}
                 </button>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Kenglik (Lat)"
-                  value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500"
-                />
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="Uzunlik (Lng)"
-                  value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-mono outline-none focus:border-emerald-500"
-                />
+              <div className="relative h-56 overflow-hidden rounded-xl border border-slate-200">
+                <MapContainer
+                  center={position || DEFAULT_CENTER}
+                  className="h-full w-full"
+                  zoom={15}
+                  scrollWheelZoom
+                >
+                  <TileLayer
+                    attribution="&copy; Google Maps"
+                    url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                  />
+                  <MapPositionHandler
+                    position={position}
+                    onPositionChange={setPosition}
+                  />
+                </MapContainer>
               </div>
-
-              {latitude && longitude ? (
+              {position ? (
                 <p className="mt-1 flex items-center gap-1 text-[11px] text-emerald-600">
-                  <Check size={12} /> {uz.admin.barbershops.locationSelected}: {latitude}, {longitude}
+                  <Check size={12} /> {uz.admin.barbershops.locationSelected}
                 </p>
               ) : (
-                <p className="mt-1 text-[11px] text-slate-400">
-                  {uz.admin.barbershops.noLocationSelected}
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
+                  <MapPin size={12} /> {uz.admin.barbershops.noLocationSelected}
                 </p>
               )}
             </div>
@@ -190,7 +213,7 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
             </div>
 
             {/* Delete button for existing shop */}
-            {barbershop && onDelete && (
+            {barbershop && onDelete && isAdmin && (
               <div className="pt-3 border-t border-red-100 text-center">
                 <button
                   type="button"
@@ -264,15 +287,6 @@ export function BarbershopModal({ barbershop, onSave, onDelete, onClose }) {
       )}
 
 
-      {showMapPicker && (
-        <MapLocationPickerModal
-          initialLat={latitude}
-          initialLng={longitude}
-          onSave={handleLocationPicked}
-          onClose={() => setShowMapPicker(false)}
-        />
-      )}
     </>
   )
 }
-

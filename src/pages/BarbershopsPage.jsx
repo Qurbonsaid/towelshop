@@ -22,6 +22,7 @@ export function BarbershopsPage({
   returns = [],
 }) {
   const isAdmin = role === ROLES.ADMIN;
+  const canManage = isAdmin || role === ROLES.STAFF;
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -55,6 +56,7 @@ export function BarbershopsPage({
         map[barber.barbershopId].barberCount += 1;
         map[barber.barbershopId].totalDebt += Number(barber.debt) || 0;
         map[barber.barbershopId].totalOverpaid += Number(barber.overpaid) || 0;
+        map[barber.barbershopId].heldTowels += Number(barber.initialTowels) || 0;
       }
     });
 
@@ -70,7 +72,7 @@ export function BarbershopsPage({
     returns.forEach((r) => {
       const sId = r.barbershopId || barberToShop[r.barberId];
       if (sId && map[sId]) {
-        map[sId].heldTowels -= Number(r.quantityReturned) || 0;
+        map[sId].heldTowels -= Number(r.returnedTowels) || 0;
       }
     });
 
@@ -118,7 +120,7 @@ export function BarbershopsPage({
       </div>
 
       {/* Admin Add Barbershop Quick Button */}
-      {isAdmin && (
+      {canManage && (
         <button
           type="button"
           onClick={() => setIsAddModalOpen(true)}
@@ -241,6 +243,7 @@ export function BarbershopsPage({
       {/* Admin Add Barbershop Modal */}
       {isAddModalOpen && (
         <BarbershopModal
+          isAdmin={isAdmin}
           onSave={handleCreateShop}
           onClose={() => setIsAddModalOpen(false)}
         />

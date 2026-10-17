@@ -1,26 +1,43 @@
-import React, { useState } from 'react'
-import { AlertCircle, Scissors, Trash2, X } from './icons'
+import React, { useState } from "react";
+import { AlertCircle, Scissors, Trash2, X } from "./icons";
 
-import { CONTRACT_TYPES } from '../constants/models'
-import { uz } from '../i18n/uz'
+import { CONTRACT_TYPES } from "../constants/models";
+import { uz } from "../i18n/uz";
 
-export function BarberModal({ barber, barbershops = [], preselectedShopId, onSave, onDelete, onClose }) {
-  const [barbershopId, setBarbershopId] = useState(barber?.barbershopId || preselectedShopId || '')
-  const [name, setName] = useState(barber?.name || '')
-  const [phone, setPhone] = useState(barber?.phone || '')
-  const [contractType, setContractType] = useState(barber?.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN)
-  const [pricePerTowel, setPricePerTowel] = useState(barber?.pricePerTowel ?? 3000)
-  const [debt, setDebt] = useState(barber?.debt ?? 0)
-  const [overpaid, setOverpaid] = useState(barber?.overpaid ?? 0)
-  const [saving, setSaving] = useState(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+export function BarberModal({
+  barber,
+  barbershops = [],
+  preselectedShopId,
+  isAdmin = false,
+  onSave,
+  onDelete,
+  onClose,
+}) {
+  const [barbershopId, setBarbershopId] = useState(
+    barber?.barbershopId || preselectedShopId || "",
+  );
+  const [name, setName] = useState(barber?.name || "");
+  const [phone, setPhone] = useState(barber?.phone || "");
+  const [contractType, setContractType] = useState(
+    barber?.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN,
+  );
+  const [pricePerTowel, setPricePerTowel] = useState(
+    barber?.pricePerTowel ?? 3000,
+  );
+  const [initialTowels, setInitialTowels] = useState(
+    barber?.initialTowels ?? 0,
+  );
+  const [debt, setDebt] = useState(barber?.debt ?? 0);
+  const [overpaid, setOverpaid] = useState(barber?.overpaid ?? 0);
+  const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (!name.trim() || !barbershopId) return
+    e.preventDefault();
+    if (!name.trim() || !barbershopId) return;
 
-    setSaving(true)
+    setSaving(true);
     try {
       await onSave({
         barbershopId,
@@ -28,32 +45,36 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
         phone: phone.trim(),
         contractType,
         pricePerTowel: Number(pricePerTowel) || 0,
-        debt: Number(debt) || 0,
-        overpaid: Number(overpaid) || 0,
-      })
-      onClose()
+        ...(barber ? {} : { initialTowels: Number(initialTowels) || 0 }),
+        ...(isAdmin
+          ? {
+              debt: Number(debt) || 0,
+              overpaid: Number(overpaid) || 0,
+            }
+          : {}),
+      });
+      onClose();
     } catch (err) {
-      console.error(err)
-      alert(uz.common.error)
+      console.error(err);
+      alert(uz.common.error);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!onDelete || !barber) return
-    setDeleting(true)
+    if (!onDelete || !barber) return;
+    setDeleting(true);
     try {
-      await onDelete(barber.id)
-      onClose()
+      await onDelete(barber.id);
+      onClose();
     } catch (err) {
-      console.error('Delete barber error:', err)
-      alert(uz.common.error)
+      console.error("Delete barber error:", err);
+      alert(uz.common.error);
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
-  }
-
+  };
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
@@ -135,8 +156,8 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
               <label
                 className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
                   contractType === CONTRACT_TYPES.PAY_FOR_TAKEN
-                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                    ? "border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500"
+                    : "border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800"
                 }`}
               >
                 <input
@@ -148,7 +169,9 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
                   className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
                 />
                 <div>
-                  <span className="text-xs font-bold block">{uz.contractTypes.payForTaken}</span>
+                  <span className="text-xs font-bold block">
+                    {uz.contractTypes.payForTaken}
+                  </span>
                   <span className="text-[11px] text-slate-500 leading-tight block">
                     {uz.contractTypes.payForTakenDesc}
                   </span>
@@ -158,8 +181,8 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
               <label
                 className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-colors ${
                   contractType === CONTRACT_TYPES.PAY_FOR_USED
-                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500'
-                    : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                    ? "border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-1 ring-emerald-500"
+                    : "border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800"
                 }`}
               >
                 <input
@@ -171,7 +194,9 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
                   className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
                 />
                 <div>
-                  <span className="text-xs font-bold block">{uz.contractTypes.payForUsed}</span>
+                  <span className="text-xs font-bold block">
+                    {uz.contractTypes.payForUsed}
+                  </span>
                   <span className="text-[11px] text-slate-500 leading-tight block">
                     {uz.contractTypes.payForUsedDesc}
                   </span>
@@ -202,33 +227,51 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
             </div>
           </div>
 
+          {/* Initial towel balance is set only while creating a barber. */}
+          {!barber && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                {uz.admin.barbers.initialTowelsLabel}
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={initialTowels}
+                onChange={(e) => setInitialTowels(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+              />
+            </div>
+          )}
+
           {/* Initial Debt / Overpaid */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {uz.admin.barbers.initialDebtLabel}
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={debt}
-                onChange={(e) => setDebt(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
-              />
+          {!barber && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {uz.admin.barbers.initialDebtLabel}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={debt}
+                  onChange={(e) => setDebt(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {uz.admin.barbers.initialOverpaidLabel}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={overpaid}
+                  onChange={(e) => setOverpaid(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {uz.admin.barbers.initialOverpaidLabel}
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={overpaid}
-                onChange={(e) => setOverpaid(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
+          )}
 
           <div className="mt-5 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
             <button
@@ -247,7 +290,7 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
             </button>
           </div>
 
-          {barber && onDelete && (
+          {barber && onDelete && isAdmin && (
             <div className="pt-3 border-t border-red-100 text-center">
               <button
                 type="button"
@@ -300,6 +343,5 @@ export function BarberModal({ barber, barbershops = [], preselectedShopId, onSav
         </div>
       )}
     </div>
-  )
+  );
 }
-

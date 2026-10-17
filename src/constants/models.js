@@ -8,5 +8,4 @@ export const COLLECTIONS = {
   BARBERSHOPS: 'barbershops',
   BARBERS: 'barbers',
   SALES: 'sales',
-  RETURNS: 'returns',
 }

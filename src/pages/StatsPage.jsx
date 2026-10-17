@@ -34,17 +34,21 @@ export function StatsPage({
     });
 
     returns.forEach((r) => {
-      totalReturned += Number(r.quantityReturned) || 0;
+      totalReturned += Number(r.returnedTowels) || 0;
     });
 
-    const heldByClients = Math.max(0, totalDelivered - totalReturned);
+    const initialTowels = barbers.reduce(
+      (sum, barber) => sum + (Number(barber.initialTowels) || 0),
+      0,
+    );
+    const heldByClients = Math.max(0, initialTowels + totalDelivered - totalReturned);
 
     return {
       totalDelivered,
       totalReturned,
       heldByClients,
     };
-  }, [sales, returns]);
+  }, [sales, returns, barbers]);
 
   return (
     <div className="space-y-4 pb-6">

@@ -49,8 +49,8 @@ export function MapView() {
           <div className="h-[62vh] min-h-[350px] w-full">
             <MapContainer center={centerPos} className="h-full w-full" zoom={12}>
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; Google Maps'
+                url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
               />
 
               {shopsWithCoords.map((shop) => {

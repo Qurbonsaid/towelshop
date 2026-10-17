@@ -34,6 +34,7 @@ export function BarbershopDetailsPage({
   const { shopId } = useParams();
   const navigate = useNavigate();
   const isAdmin = role === ROLES.ADMIN;
+  const canManage = isAdmin || role === ROLES.STAFF;
 
   const [isEditShopModalOpen, setIsEditShopModalOpen] = useState(false);
   const [isAddBarberModalOpen, setIsAddBarberModalOpen] = useState(false);
@@ -59,7 +60,7 @@ export function BarbershopDetailsPage({
   const barberTowelsHeldMap = useMemo(() => {
     const map = {};
     shopBarbers.forEach((b) => {
-      map[b.id] = 0;
+      map[b.id] = Number(b.initialTowels) || 0;
     });
 
     sales.forEach((s) => {
@@ -70,7 +71,7 @@ export function BarbershopDetailsPage({
 
     returns.forEach((r) => {
       if (r.barberId && map[r.barberId] !== undefined) {
-        map[r.barberId] -= Number(r.quantityReturned) || 0;
+        map[r.barberId] -= Number(r.returnedTowels) || 0;
       }
     });
 
@@ -122,10 +123,10 @@ export function BarbershopDetailsPage({
       subtitle: currentShop?.address || null,
       showBack: true,
       backTo: "/sartaroshxonalar",
-      actions: isAdmin ? (
+      actions: canManage ? (
         <div className="flex items-center gap-1.5">
           {/* Admin Gear Icon: ONLY shown if user is admin */}
-          {isAdmin && (
+          {canManage && (
             <button
               type="button"
               onClick={() => setIsEditShopModalOpen(true)}
@@ -209,7 +210,7 @@ export function BarbershopDetailsPage({
           </p>
         </div>
 
-        {isAdmin && (
+        {canManage && (
           <button
             type="button"
             onClick={() => setIsAddBarberModalOpen(true)}
@@ -229,7 +230,7 @@ export function BarbershopDetailsPage({
             <p className="text-xs font-semibold text-slate-700">
               {uz.barbershopDetails.noBarbers}
             </p>
-            {isAdmin && (
+            {canManage && (
               <button
                 type="button"
                 onClick={() => setIsAddBarberModalOpen(true)}
@@ -329,6 +330,7 @@ export function BarbershopDetailsPage({
       {isEditShopModalOpen && (
         <BarbershopModal
           barbershop={currentShop}
+          isAdmin={isAdmin}
           onSave={handleUpdateShop}
           onDelete={handleDeleteShop}
           onClose={() => setIsEditShopModalOpen(false)}
@@ -340,6 +342,7 @@ export function BarbershopDetailsPage({
         <BarberModal
           barbershops={barbershops}
           preselectedShopId={shopId}
+          isAdmin={isAdmin}
           onSave={handleCreateBarber}
           onClose={() => setIsAddBarberModalOpen(false)}
         />

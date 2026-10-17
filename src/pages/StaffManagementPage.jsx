@@ -12,7 +12,7 @@ import { ROLES } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
 import { createStaffAccount } from "../services/authService";
-import { deleteUserDoc, updateUserRole } from "../services/firestoreService";
+import { deleteUserDoc } from "../services/firestoreService";
 import { formatPhoneDisplay } from "../utils/auth";
 
 export function StaffManagementPage({ users = [] }) {

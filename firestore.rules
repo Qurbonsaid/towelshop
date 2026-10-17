@@ -51,25 +51,19 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isStaff();
 
-      // STRICT 12-HOUR WINDOW ENFORCEMENT
-      // Admin: can edit anytime
-      // Staff: can edit ONLY their own sales within 12 hours from createdAt
+      // Admins can edit any transaction.
+      // Staff can edit only their own transaction for 12 hours after creation.
+      // Staff cannot transfer ownership or rewrite the creation timestamp.
       allow update: if isAdmin() || (
         isStaff() &&
         resource.data.staffId == request.auth.uid &&
+        request.resource.data.staffId == resource.data.staffId &&
+        request.resource.data.createdAt == resource.data.createdAt &&
         request.time < resource.data.createdAt + duration.value(12, 'h')
       );
 
       // Only Admin can delete sales records
       allow delete: if isAdmin();
     }
-
-    // 5. Returns collection
-    match /returns/{returnId} {
-      allow read: if isAuthenticated();
-      allow create: if isStaff();
-      allow update, delete: if isAdmin();
-    }
   }
 }
-

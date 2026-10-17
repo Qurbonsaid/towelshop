@@ -89,17 +89,11 @@ Faqat O'zbek (Lotin) alifbosidagi toza interfeys bilan yaratilgan. Hech qanday r
 
 ---
 
-## 🔔 Push-bildirishnomalar (FCM + Cloud Functions)
+## 🔔 Push-bildirishnomalar (FCM)
 
 - **Service Worker (`public/firebase-messaging-sw.js`)**: Fon rejimida (brauzer yopiq yoki minimallashtirilgan bo'lsa ham) xabarnomalarni ko'rsatish uchun ro'yxatdan o'tkazilgan.
 - **Admin tokenini saqlash**: Admin tizimga kirganida brauzerdan ruxsat so'raladi va olingan Web Push tokeni `/users/{uid}.fcmTokens` maydoniga yoziladi.
-- **Cloud Function Triggerlari (`functions/index.js`)**:
-  - `onSaleCreated`: `/sales/{saleId}` hujjati yaratilganda ishga tushadi, barcha Adminlarga xabarnoma yuboradi:
-    - Sarlavha: `Yangi sotuv amalga oshirildi`
-    - Matn: `{staffName} hodim {barberName} sartaroshga {quantityDelivered} ta sochiq topshirdi. Summa: {totalPrice} so'm.`
-  - `onSaleUpdated`: `/sales/{saleId}` tahrirlanganda Adminlarga push jo'natadi:
-    - Sarlavha: `Sotuv tahrirlandi`
-  - Muddati o'tgan yoki yaroqsiz tokenlarni avtomatik aniqlab Firestore dan o'chiradi.
+- Push xabarlari brauzer va Firebase Messaging service worker orqali boshqariladi.
 
 ---
 
