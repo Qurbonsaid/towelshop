@@ -326,6 +326,32 @@ export const uz = {
   },
 
   notifications: {
+    titles: {
+      delivery: "Yangi sochiq yetkazildi",
+      return: "Sochiqlar qaytarildi",
+      deliveryAndReturn: "Sochiq yetkazildi va qaytarildi",
+      payment: "Yangi to'lov qabul qilindi",
+      saleUpdated: "Sotuv tahrirlandi",
+      handover: "Kunlik kassa topshirildi",
+    },
+    pushDelivery: (staffName, barberName, quantityDelivered, totalPrice) =>
+      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona toza sochiq topshirdi (${Number(totalPrice).toLocaleString()} so'm).`,
+    pushReturn: (staffName, barberName, returnedTowels) =>
+      `${staffName}: ${barberName} sartaroshdan ${returnedTowels} dona ishlatilgan sochiq qabul qildi.`,
+    pushDeliveryAndReturn: (staffName, barberName, quantityDelivered, returnedTowels, totalPrice) =>
+      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona berildi, ${returnedTowels} dona qaytarildi (${Number(totalPrice).toLocaleString()} so'm).`,
+    pushPayment: (staffName, barberName, totalPaid, cashAmount = 0, cardAmount = 0, discount = 0) => {
+      const details = [];
+      if (cashAmount > 0) details.push(`Naqd: ${Number(cashAmount).toLocaleString()} so'm`);
+      if (cardAmount > 0) details.push(`Karta: ${Number(cardAmount).toLocaleString()} so'm`);
+      if (discount > 0) details.push(`Chegirma: ${Number(discount).toLocaleString()} so'm`);
+      const detailsStr = details.length > 0 ? ` (${details.join(", ")})` : "";
+      return `${staffName}: ${barberName} sartaroshdan ${Number(totalPaid).toLocaleString()} so'm to'lov oldi${detailsStr}.`;
+    },
+    pushSaleUpdated: (staffName, barberName, details) =>
+      `${staffName}: ${barberName} sartarosh bo'yicha sotuv tahrirlandi${details ? ` (${details})` : ""}.`,
+    pushHandover: (staffName, totalPaid, cashAmount = 0, cardAmount = 0) =>
+      `${staffName} bugungi kassani topshirdi: Jami ${Number(totalPaid).toLocaleString()} so'm (Naqd: ${Number(cashAmount).toLocaleString()} so'm, Karta: ${Number(cardAmount).toLocaleString()} so'm).`,
     pushSaleBody: (staffName, barberName, quantityDelivered, totalPrice) =>
       `${staffName} hodim ${barberName} sartaroshga ${quantityDelivered} ta sochiq topshirdi. Summa: ${Number(
         totalPrice

@@ -23,6 +23,7 @@ import { setupForegroundNotifications } from "./services/fcmService";
 import {
   subscribeBarbers,
   subscribeBarbershops,
+  subscribeDailyReports,
   subscribeReturns,
   subscribeSales,
   subscribeUsers,
@@ -49,6 +50,7 @@ function App() {
   const [barbers, setBarbers] = useState([]);
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
+  const [dailyReports, setDailyReports] = useState([]);
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
@@ -107,17 +109,23 @@ function App() {
     const unsubBarbers = subscribeBarbers(setBarbers);
     const unsubSales = subscribeSales(setSales);
     const unsubReturns = subscribeReturns(setReturns);
+    const unsubDailyReports = subscribeDailyReports(setDailyReports);
 
     let unsubUsers = () => {};
     if (role === ROLES.ADMIN) {
       unsubUsers = subscribeUsers(setUsers);
     }
 
+    auth.currentUser.getIdToken().then((token) => {
+      console.log("User token:", token);
+    });
+
     return () => {
       unsubShops();
       unsubBarbers();
       unsubSales();
       unsubReturns();
+      unsubDailyReports();
       unsubUsers();
     };
   }, [user, role]);
@@ -240,23 +248,29 @@ function App() {
               <SalesPage
                 role={role}
                 userId={user.uid}
+                userProfile={userProfile}
                 sales={sales}
                 returns={returns}
               />
             }
           />
 
-          {/* 3. Statistics Route */}
+          {/* 3. Statistics & Driver Daily Report Route */}
           <Route
             path="/statistika"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.ADMIN]} role={role}>
+              <ProtectedRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.STAFF]}
+                role={role}
+              >
                 <StatsPage
                   role={role}
-                  adminUser={user}
+                  userId={user.uid}
+                  userProfile={userProfile}
                   sales={sales}
                   barbers={barbers}
                   returns={returns}
+                  dailyReports={dailyReports}
                 />
               </ProtectedRoute>
             }
@@ -267,7 +281,12 @@ function App() {
             path="/xodimlar"
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMIN]} role={role}>
-                <StaffManagementPage users={users} />
+                <StaffManagementPage
+                  users={users}
+                  sales={sales}
+                  returns={returns}
+                  dailyReports={dailyReports}
+                />
               </ProtectedRoute>
             }
           />

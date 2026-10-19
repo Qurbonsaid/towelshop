@@ -41,9 +41,9 @@ service cloud.firestore {
     // 3. Barbers collection
     match /barbers/{barberId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isAdmin();
-      // Staff can update running debt and overpaid balance when recording a sale or return
-      allow update: if isStaff();
+      // Admin and staff can create and update barbers and balance
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
     }
 
     // 4. Sales collection
@@ -63,6 +63,13 @@ service cloud.firestore {
       );
 
       // Only Admin can delete sales records
+      allow delete: if isAdmin();
+    }
+
+    // 5. Daily Reports collection
+    match /dailyReports/{reportId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isStaff();
       allow delete: if isAdmin();
     }
   }

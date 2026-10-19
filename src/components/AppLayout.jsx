@@ -124,7 +124,7 @@ export function AppLayout({ role, userProfile, _onLogout }) {
       {/* CRITICAL HINT: Hide Xodimlar tab completely if the logged-in user's role is staff! Visible ONLY to admin. */}
       <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto max-w-lg border-t border-slate-200/90 bg-white/95 px-2 py-2 backdrop-blur-md shadow-lg">
         <div
-          className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-2"}`}
+          className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
         >
           {/* 1. Sartaroshxonalar (Barbershops) */}
           <Link
@@ -156,22 +156,20 @@ export function AppLayout({ role, userProfile, _onLogout }) {
             </span>
           </Link>
 
-          {/* 3. Statistikalar (Stats) */}
-          {isAdmin && (
-            <Link
-              to="/statistika"
-              className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-                isStatsActive
-                  ? "bg-emerald-50 text-emerald-700 font-bold"
-                  : "text-slate-500 hover:text-slate-900 font-medium"
-              }`}
-            >
-              <BarChart3 size={20} />
-              <span className="text-[10px] mt-1 leading-none tracking-tight">
-                {uz.nav.stats}
-              </span>
-            </Link>
-          )}
+          {/* 3. Statistikalar (Stats / Driver Daily Report) */}
+          <Link
+            to="/statistika"
+            className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+              isStatsActive
+                ? "bg-emerald-50 text-emerald-700 font-bold"
+                : "text-slate-500 hover:text-slate-900 font-medium"
+            }`}
+          >
+            <BarChart3 size={20} />
+            <span className="text-[10px] mt-1 leading-none tracking-tight">
+              {isAdmin ? uz.nav.stats : "Hisobot"}
+            </span>
+          </Link>
 
           {/* 4. Xodimlar (Staff) -> CRITICAL HINT: ONLY visible to admin, hidden for staff */}
           {isAdmin && (

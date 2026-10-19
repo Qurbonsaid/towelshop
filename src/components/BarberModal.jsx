@@ -45,13 +45,11 @@ export function BarberModal({
         phone: phone.trim(),
         contractType,
         pricePerTowel: Number(pricePerTowel) || 0,
-        ...(barber ? {} : { initialTowels: Number(initialTowels) || 0 }),
-        ...(isAdmin
-          ? {
-              debt: Number(debt) || 0,
-              overpaid: Number(overpaid) || 0,
-            }
-          : {}),
+        initialTowels: Number(initialTowels) || 0,
+        initialDebt: Number(debt) || 0,
+        initialOverpaid: Number(overpaid) || 0,
+        debt: Number(debt) || 0,
+        overpaid: Number(overpaid) || 0,
       });
       onClose();
     } catch (err) {
@@ -227,51 +225,55 @@ export function BarberModal({
             </div>
           </div>
 
-          {/* Initial towel balance is set only while creating a barber. */}
-          {!barber && (
+          {/* Towel balance (initial or current) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              {barber
+                ? "Qo'lidagi sochiqlar soni (dona)"
+                : uz.admin.barbers.initialTowelsLabel}
+            </label>
+            <input
+              type="number"
+              min="0"
+              value={initialTowels}
+              onChange={(e) => setInitialTowels(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          {/* Debt / Overpaid balance */}
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {uz.admin.barbers.initialTowelsLabel}
+                {barber
+                  ? "Qarzdorlik summasi (so'm)"
+                  : uz.admin.barbers.initialDebtLabel}
               </label>
               <input
                 type="number"
                 min="0"
-                value={initialTowels}
-                onChange={(e) => setInitialTowels(e.target.value)}
+                step="1000"
+                value={debt}
+                onChange={(e) => setDebt(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
               />
             </div>
-          )}
-
-          {/* Initial Debt / Overpaid */}
-          {!barber && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.admin.barbers.initialDebtLabel}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={debt}
-                  onChange={(e) => setDebt(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.admin.barbers.initialOverpaidLabel}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={overpaid}
-                  onChange={(e) => setOverpaid(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                {barber
+                  ? "Haqdorlik (Ortiqcha to'lov)"
+                  : uz.admin.barbers.initialOverpaidLabel}
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1000"
+                value={overpaid}
+                onChange={(e) => setOverpaid(e.target.value)}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
+              />
             </div>
-          )}
+          </div>
 
           <div className="mt-5 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
             <button

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
+  DollarSign,
   Package,
   Phone,
   Scissors,
@@ -9,6 +10,7 @@ import {
 } from "../components/icons";
 
 import { BarberModal } from "../components/BarberModal";
+import { BarberPaymentModal } from "../components/BarberPaymentModal";
 import { CONTRACT_TYPES } from "../constants/models";
 import { ROLES } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
@@ -19,6 +21,7 @@ import {
   recordBarberPayment,
   updateBarber,
 } from "../services/firestoreService";
+import { notifyAdminSafe } from "../services/pushService";
 import { formatPhoneDisplay } from "../utils/auth";
 
 export function BarberDetailsPage({
@@ -34,12 +37,15 @@ export function BarberDetailsPage({
   const isAdmin = role === ROLES.ADMIN;
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   // Sale modal state ("Sotish")
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [deliveryQty, setDeliveryQty] = useState("");
   const [returnQty, setReturnQty] = useState("");
   const [saleNote, setSaleNote] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [cashAmount, setCashAmount] = useState("");
+  const [cardAmount, setCardAmount] = useState("");
+  const [discount, setDiscount] = useState("");
   const [saleSubmitting, setSaleSubmitting] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
@@ -140,43 +146,90 @@ export function BarberDetailsPage({
     setDeliveryQty("");
     setReturnQty("");
     setSaleNote("");
-    setPaymentAmount("");
+    setCashAmount("");
+    setCardAmount("");
+    setDiscount("");
     setIsSaleModalOpen(true);
   };
 
   const handleSaleSubmit = async (e) => {
     e.preventDefault();
-    const deliveredQuantity = Number(deliveryQty);
-    const returnedQuantity = Number(returnQty);
-    const payment = Number(paymentAmount);
-    if (
-      (!deliveredQuantity || deliveredQuantity <= 0) &&
-      (!returnedQuantity || returnedQuantity <= 0) &&
-      (!payment || payment <= 0)
-    ) {
+    const deliveredQuantity = Number(deliveryQty) || 0;
+    const returnedQuantity = Number(returnQty) || 0;
+    const cash = Number(cashAmount) || 0;
+    const card = Number(cardAmount) || 0;
+    const disc = Number(discount) || 0;
+    const totalCredit = cash + card + disc;
+
+    if (deliveredQuantity <= 0 && returnedQuantity <= 0 && totalCredit <= 0) {
       return;
     }
 
     setSaleSubmitting(true);
-    try {
-      if (deliveredQuantity > 0 || returnedQuantity > 0) {
-        await createSale({
-          barberId: currentBarber.id,
-          barbershopId: currentBarber.barbershopId,
-          staffId: userId,
-          staffName: userProfile?.name || (isAdmin ? "Admin" : "Xodim"),
-          barberName: currentBarber.name,
-          barbershopName: currentShop?.name || "",
-          quantityDelivered: deliveredQuantity,
-          returnedTowels: returnedQuantity,
-          unitPrice: currentBarber.pricePerTowel || 3000,
-          contractType: currentBarber.contractType,
-          note: saleNote,
-        });
-      }
+    const staffName = userProfile?.name || (isAdmin ? "Admin" : "Xodim");
+    const barberName = currentBarber.name;
+    const unitPrice = currentBarber.pricePerTowel || 3000;
+    const totalPrice = deliveredQuantity * unitPrice;
 
-      if (payment > 0) {
-        await recordBarberPayment(currentBarber.id, payment);
+    try {
+      await createSale({
+        barberId: currentBarber.id,
+        barbershopId: currentBarber.barbershopId,
+        staffId: userId,
+        staffName,
+        barberName,
+        barbershopName: currentShop?.name || "",
+        quantityDelivered: deliveredQuantity,
+        returnedTowels: returnedQuantity,
+        unitPrice,
+        contractType: currentBarber.contractType,
+        cashAmount: cash,
+        cardAmount: card,
+        discount: disc,
+        note: saleNote,
+      });
+
+      // Dispatch push notification to admins if staff performed this action
+      if (!isAdmin) {
+        if (deliveredQuantity > 0 && returnedQuantity > 0) {
+          notifyAdminSafe(
+            uz.notifications.titles.deliveryAndReturn,
+            uz.notifications.pushDeliveryAndReturn(
+              staffName,
+              barberName,
+              deliveredQuantity,
+              returnedQuantity,
+              totalPrice,
+            ),
+          );
+        } else if (deliveredQuantity > 0) {
+          notifyAdminSafe(
+            uz.notifications.titles.delivery,
+            uz.notifications.pushDelivery(
+              staffName,
+              barberName,
+              deliveredQuantity,
+              totalPrice,
+            ),
+          );
+        } else if (returnedQuantity > 0) {
+          notifyAdminSafe(
+            uz.notifications.titles.return,
+            uz.notifications.pushReturn(staffName, barberName, returnedQuantity),
+          );
+        } else if (totalCredit > 0) {
+          notifyAdminSafe(
+            uz.notifications.titles.payment,
+            uz.notifications.pushPayment(
+              staffName,
+              barberName,
+              totalCredit,
+              cash,
+              card,
+              disc,
+            ),
+          );
+        }
       }
 
       setIsSaleModalOpen(false);
@@ -195,6 +248,41 @@ export function BarberDetailsPage({
     } finally {
       setSaleSubmitting(false);
     }
+  };
+
+  const handlePaymentSubmit = async (paymentData) => {
+    const staffName = userProfile?.name || (isAdmin ? "Admin" : "Xodim");
+    const barberName = currentBarber.name;
+    const cash = Number(paymentData.cashAmount) || 0;
+    const card = Number(paymentData.cardAmount) || 0;
+    const disc = Number(paymentData.discount) || 0;
+    const totalCredit = cash + card + disc;
+
+    await recordBarberPayment({
+      ...paymentData,
+      barberId: currentBarber.id,
+      barberName,
+      barbershopId: currentBarber.barbershopId,
+      barbershopName: currentShop?.name || "",
+      staffId: userId,
+      staffName,
+    });
+
+    if (!isAdmin && totalCredit > 0) {
+      notifyAdminSafe(
+        uz.notifications.titles.payment,
+        uz.notifications.pushPayment(
+          staffName,
+          barberName,
+          totalCredit,
+          cash,
+          card,
+          disc,
+        ),
+      );
+    }
+
+    showToast(uz.barberDetails.paymentSuccess);
   };
 
   const handleUpdateBarber = async (data) => {
@@ -258,15 +346,23 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* Unified sale action: use it once for delivery and again when towels are returned */}
-        <div className="mt-4">
+        {/* Quick action buttons: Sotish (Delivery/Return) & To'lov qabul qilish */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={handleOpenSale}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-3 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-2.5 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
           >
-            <Package size={16} />
+            <Package size={15} />
             {uz.barberDetails.saleBtn}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPaymentModalOpen(true)}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-800 shadow-xs hover:bg-emerald-100 active:scale-98 transition-all"
+          >
+            <DollarSign size={15} />
+            {uz.barberDetails.settlePaymentBtn}
           </button>
         </div>
       </div>
@@ -470,24 +566,96 @@ export function BarberDetailsPage({
                   )}
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.barberDetails.paymentAmountLabel}
-                </label>
-                <div className="relative">
+              {/* Payment inputs: Naqd, Click, Chegirma */}
+              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <p className="text-xs font-bold text-slate-800">
+                  To'lov qabul qilish (ixtiyoriy)
+                </p>
+
+                {/* Naqd */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                    Naqd pul (so'm)
+                  </label>
                   <input
                     type="number"
                     min="0"
                     step="1000"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    value={cashAmount}
+                    onChange={(e) => setCashAmount(e.target.value)}
                     placeholder="Masalan: 50000"
-                    className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold outline-none focus:border-emerald-500"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-emerald-500"
                   />
-                  <span className="absolute right-3 top-2.5 text-xs text-slate-400">
-                    {uz.common.sum}
-                  </span>
                 </div>
+
+                {/* Click / Karta */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                    Click / Karta (so'm)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={cardAmount}
+                    onChange={(e) => setCardAmount(e.target.value)}
+                    placeholder="Masalan: 30000"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-sky-500"
+                  />
+                </div>
+
+                {/* Chegirma */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                    Chegirma (so'm)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    placeholder="Masalan: 5000"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Live total payment summary */}
+                {(Number(cashAmount) > 0 ||
+                  Number(cardAmount) > 0 ||
+                  Number(discount) > 0) && (
+                  <div className="pt-2 border-t border-slate-200 text-[11px] space-y-1">
+                    <div className="flex justify-between font-semibold text-slate-700">
+                      <span>Jami to'lov (Naqd + Click):</span>
+                      <span>
+                        {(
+                          (Number(cashAmount) || 0) + (Number(cardAmount) || 0)
+                        ).toLocaleString()}{" "}
+                        {uz.common.sum}
+                      </span>
+                    </div>
+                    {Number(discount) > 0 && (
+                      <div className="flex justify-between font-semibold text-amber-800">
+                        <span>Chegirma:</span>
+                        <span>
+                          {(Number(discount) || 0).toLocaleString()}{" "}
+                          {uz.common.sum}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-emerald-800 pt-1 border-t border-slate-200">
+                      <span>Qarzdan chegiriladi:</span>
+                      <span>
+                        {(
+                          (Number(cashAmount) || 0) +
+                          (Number(cardAmount) || 0) +
+                          (Number(discount) || 0)
+                        ).toLocaleString()}{" "}
+                        {uz.common.sum}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -515,7 +683,11 @@ export function BarberDetailsPage({
                   type="submit"
                   disabled={
                     saleSubmitting ||
-                    (!deliveryQty && !returnQty && !paymentAmount)
+                    (!deliveryQty &&
+                      !returnQty &&
+                      !cashAmount &&
+                      !cardAmount &&
+                      !discount)
                   }
                   className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
                 >
@@ -527,7 +699,16 @@ export function BarberDetailsPage({
         </div>
       )}
 
-      {/* Admin Edit Barber Modal (with delete confirmation) */}
+      {/* Standalone Barber Payment Modal */}
+      {isPaymentModalOpen && (
+        <BarberPaymentModal
+          barber={currentBarber}
+          onSave={handlePaymentSubmit}
+          onClose={() => setIsPaymentModalOpen(false)}
+        />
+      )}
+
+      {/* Edit Barber Modal (available to both admin and staff) */}
       {isEditModalOpen && (
         <BarberModal
           barber={currentBarber}

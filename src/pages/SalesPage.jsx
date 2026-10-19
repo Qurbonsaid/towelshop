@@ -13,13 +13,14 @@ import { ROLES } from '../constants/roles'
 import { useHeader } from '../context/HeaderContext'
 import { uz } from '../i18n/uz'
 import { deleteSale, updateSale } from '../services/firestoreService'
+import { notifyAdminSafe } from '../services/pushService'
 import {
   canEditSale,
   formatRemainingTime,
   getRemainingTimeMs,
 } from '../utils/permissions'
 
-export function SalesPage({ role, userId, sales = [] }) {
+export function SalesPage({ role, userId, userProfile, sales = [] }) {
   const isAdmin = role === ROLES.ADMIN
   const [searchQuery, setSearchQuery] = useState('')
   const [editingSale, setEditingSale] = useState(null)
@@ -48,6 +49,17 @@ export function SalesPage({ role, userId, sales = [] }) {
 
   const handleSaveSale = async (id, data) => {
     await updateSale(id, data)
+
+    // If edited by staff, notify admins via push notification
+    if (!isAdmin) {
+      const staffName = userProfile?.name || 'Xodim'
+      const barberName = editingSale?.barberName || 'Sartarosh'
+      const details = `${data.quantityDelivered ?? 0} dona toza, ${data.returnedTowels ?? 0} qaytarilgan`
+      notifyAdminSafe(
+        uz.notifications.titles.saleUpdated,
+        uz.notifications.pushSaleUpdated(staffName, barberName, details)
+      )
+    }
   }
 
   const handleDeleteSale = async (id) => {
@@ -137,6 +149,29 @@ export function SalesPage({ role, userId, sales = [] }) {
                       )}
                     </div>
                   </div>
+
+                  {(Number(sale.cashAmount) > 0 ||
+                    Number(sale.cardAmount) > 0 ||
+                    Number(sale.discount) > 0) && (
+                    <div className="flex items-center gap-2 text-[10px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 flex-wrap">
+                      <span className="font-bold text-slate-700">To'lov:</span>
+                      {Number(sale.cashAmount) > 0 && (
+                        <span className="font-semibold text-emerald-800">
+                          Naqd: {Number(sale.cashAmount).toLocaleString()} so'm
+                        </span>
+                      )}
+                      {Number(sale.cardAmount) > 0 && (
+                        <span className="font-semibold text-sky-800">
+                          Click: {Number(sale.cardAmount).toLocaleString()} so'm
+                        </span>
+                      )}
+                      {Number(sale.discount) > 0 && (
+                        <span className="font-semibold text-amber-800">
+                          Chegirma: {Number(sale.discount).toLocaleString()} so'm
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-[11px] text-slate-500">
                     <span className="flex items-center gap-1">

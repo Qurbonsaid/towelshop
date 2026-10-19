@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Bell, BellRing } from "./icons";
 import { uz } from "../i18n/uz";
+import { auth } from "../config/firebase";
 import {
   registerFcmForAdmin,
   triggerLocalTestNotification,
 } from "../services/fcmService";
 
-export function AdminPushBanner({ adminUid }) {
+export function AdminPushBanner() {
   const [permission, setPermission] = useState(() =>
     typeof window !== "undefined" && "Notification" in window
       ? Notification.permission
@@ -15,8 +16,9 @@ export function AdminPushBanner({ adminUid }) {
   const [loading, setLoading] = useState(false);
 
   const handleEnablePush = async () => {
+    if (!auth.currentUser?.uid) return; // Ensure the user is authenticated before proceeding
     setLoading(true);
-    await registerFcmForAdmin(adminUid);
+    await registerFcmForAdmin(auth.currentUser.uid);
     await triggerLocalTestNotification();
     if (typeof window !== "undefined" && "Notification" in window) {
       setPermission(Notification.permission);
