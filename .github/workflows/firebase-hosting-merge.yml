@@ -3,7 +3,7 @@ name: Deploy to Firebase Hosting on merge
 on:
   push:
     branches:
-      - revert
+      - main
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
