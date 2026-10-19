@@ -242,6 +242,13 @@ export function BarberDetailsPage({
               ? uz.barberDetails.deliverySuccess
               : uz.barberDetails.returnSuccess,
       );
+
+      // If staff makes a sale, navigate them to stats page to see/enter daily pickup and balance
+      if (!isAdmin) {
+        setTimeout(() => {
+          navigate("/statistika");
+        }, 1200);
+      }
     } catch (err) {
       console.error("Sale action error:", err);
       alert(uz.common.error);
