@@ -116,10 +116,6 @@ function App() {
       unsubUsers = subscribeUsers(setUsers);
     }
 
-    auth.currentUser.getIdToken().then((token) => {
-      console.log("User token:", token);
-    });
-
     return () => {
       unsubShops();
       unsubBarbers();

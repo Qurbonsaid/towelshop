@@ -14,11 +14,7 @@ import { useHeader } from '../context/HeaderContext'
 import { uz } from '../i18n/uz'
 import { deleteSale, updateSale } from '../services/firestoreService'
 import { notifyAdminSafe } from '../services/pushService'
-import {
-  canEditSale,
-  formatRemainingTime,
-  getRemainingTimeMs,
-} from '../utils/permissions'
+import { canEditSale } from '../utils/permissions'
 
 export function SalesPage({ role, userId, userProfile, sales = [] }) {
   const isAdmin = role === ROLES.ADMIN
@@ -112,8 +108,6 @@ export function SalesPage({ role, userId, userProfile, sales = [] }) {
                   currentUid: userId,
                   createdAt: sale.createdAt,
                 })
-              const remainingTimeMs = getRemainingTimeMs(sale.createdAt)
-              const isExpired = remainingTimeMs <= 0
 
               return (
                 <div
@@ -179,7 +173,7 @@ export function SalesPage({ role, userId, userProfile, sales = [] }) {
                       Xodim: <strong className="text-slate-700">{sale.staffName || 'Xodim'}</strong>
                     </span>
 
-                    {/* Actions: Admin or 12-hour staff rule */}
+                    {/* Actions: Admin or Staff Edit */}
                     <div className="flex items-center gap-1.5">
                       {isAdmin ? (
                         <>
@@ -201,22 +195,16 @@ export function SalesPage({ role, userId, userProfile, sales = [] }) {
                           </button>
                         </>
                       ) : (
-                        <>
-                          {eligibleForStaffEdit ? (
-                            <button
-                              type="button"
-                              onClick={() => setEditingSale(sale)}
-                              className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 border border-amber-200 hover:bg-amber-100"
-                            >
-                              <Edit size={12} />
-                              {formatRemainingTime(remainingTimeMs)}
-                            </button>
-                          ) : (
-                            <span className="text-[10px] text-slate-400 italic">
-                              {isExpired ? 'Muddati tugagan' : ''}
-                            </span>
-                          )}
-                        </>
+                        eligibleForStaffEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingSale(sale)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 border border-emerald-200 hover:bg-emerald-100 active:scale-95 transition-all"
+                          >
+                            <Edit size={13} />
+                            <span>Tahrirlash</span>
+                          </button>
+                        )
                       )}
                     </div>
                   </div>

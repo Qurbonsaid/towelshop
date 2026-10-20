@@ -3,20 +3,30 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
-  setDoc,
   updateDoc,
   where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import { COLLECTIONS, CONTRACT_TYPES } from "../constants/models";
+
+// ========================
+// DATE UTILS
+// ========================
+
+export function getTodayDateString(d = new Date()) {
+  const date = d instanceof Date ? d : new Date(d);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 // ========================
 // BARBERSHOPS
@@ -67,6 +77,7 @@ export async function createBarbershop({
     longitude:
       longitude !== null && !isNaN(longitude) ? Number(longitude) : null,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return docRef.id;
 }
@@ -110,17 +121,14 @@ export async function deleteBarbershopCascade(barbershopId) {
   );
   const salesSnapshot = await getDocs(salesQuery);
 
-  // Delete all child sales
   for (const sDoc of salesSnapshot.docs) {
     await deleteDoc(sDoc.ref);
   }
 
-  // Delete all child barbers
   for (const bDoc of barbersSnapshot.docs) {
     await deleteDoc(bDoc.ref);
   }
 
-  // Delete the barbershop itself
   await deleteDoc(doc(db, COLLECTIONS.BARBERSHOPS, barbershopId));
 }
 
@@ -134,6 +142,9 @@ export async function listBarbers() {
   return snapshot.docs.map((docItem) => ({
     id: docItem.id,
     ...docItem.data(),
+    towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
+    debt: Number(docItem.data().debt || 0),
+    overpaid: Number(docItem.data().overpaid || 0),
   }));
 }
 
@@ -145,6 +156,9 @@ export function subscribeBarbers(callback) {
       const items = snapshot.docs.map((docItem) => ({
         id: docItem.id,
         ...docItem.data(),
+        towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
+        debt: Number(docItem.data().debt || 0),
+        overpaid: Number(docItem.data().overpaid || 0),
       }));
       callback(items);
     },
@@ -161,15 +175,10 @@ export async function listBarbersByBarbershop(barbershopId) {
   return snapshot.docs.map((docItem) => ({
     id: docItem.id,
     ...docItem.data(),
+    towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
+    debt: Number(docItem.data().debt || 0),
+    overpaid: Number(docItem.data().overpaid || 0),
   }));
-}
-
-export function getTodayDateString(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 export async function createBarber({
@@ -178,27 +187,22 @@ export async function createBarber({
   phone = "",
   contractType = CONTRACT_TYPES.PAY_FOR_TAKEN,
   pricePerTowel = 3000,
-  initialTowels = 0,
-  initialDebt = 0,
-  initialOverpaid = 0,
+  towelsCount = 0,
   debt = 0,
   overpaid = 0,
+  initialTowels = 0,
 }) {
-  const initDebt =
-    Number(initialDebt !== undefined && initialDebt !== 0 ? initialDebt : debt) || 0;
-  const initOverpaid =
-    Number(initialOverpaid !== undefined && initialOverpaid !== 0 ? initialOverpaid : overpaid) || 0;
-  const initTowels = Number(initialTowels) || 0;
+  const count = Number(towelsCount !== undefined ? towelsCount : initialTowels) || 0;
+  const initDebt = Number(debt) || 0;
+  const initOverpaid = Number(overpaid) || 0;
 
   const docRef = await addDoc(collection(db, COLLECTIONS.BARBERS), {
     barbershopId,
     name: name.trim(),
     phone: phone.trim(),
     contractType,
-    pricePerTowel: Number(pricePerTowel) || 0,
-    initialTowels: initTowels,
-    initialDebt: initDebt,
-    initialOverpaid: initOverpaid,
+    pricePerTowel: Number(pricePerTowel) || 3000,
+    towelsCount: count,
     debt: initDebt,
     overpaid: initOverpaid,
     createdAt: serverTimestamp(),
@@ -210,19 +214,19 @@ export async function createBarber({
 export async function updateBarber(id, data) {
   const docRef = doc(db, COLLECTIONS.BARBERS, id);
   const updateData = {
-    ...data,
     updatedAt: serverTimestamp(),
   };
+
   if (data.name !== undefined) updateData.name = data.name.trim();
   if (data.phone !== undefined) updateData.phone = data.phone.trim();
+  if (data.barbershopId !== undefined) updateData.barbershopId = data.barbershopId;
+  if (data.contractType !== undefined) updateData.contractType = data.contractType;
   if (data.pricePerTowel !== undefined)
     updateData.pricePerTowel = Number(data.pricePerTowel) || 0;
-  if (data.initialTowels !== undefined)
-    updateData.initialTowels = Number(data.initialTowels) || 0;
-  if (data.initialDebt !== undefined)
-    updateData.initialDebt = Number(data.initialDebt) || 0;
-  if (data.initialOverpaid !== undefined)
-    updateData.initialOverpaid = Number(data.initialOverpaid) || 0;
+  if (data.towelsCount !== undefined)
+    updateData.towelsCount = Number(data.towelsCount) || 0;
+  else if (data.initialTowels !== undefined)
+    updateData.towelsCount = Number(data.initialTowels) || 0;
   if (data.debt !== undefined) updateData.debt = Number(data.debt) || 0;
   if (data.overpaid !== undefined)
     updateData.overpaid = Number(data.overpaid) || 0;
@@ -235,7 +239,6 @@ export async function deleteBarber(id) {
 }
 
 export async function deleteBarberCascade(barberId) {
-  // Delete associated sales
   const salesQuery = query(
     collection(db, COLLECTIONS.SALES),
     where("barberId", "==", barberId)
@@ -244,134 +247,7 @@ export async function deleteBarberCascade(barberId) {
   for (const sDoc of salesSnapshot.docs) {
     await deleteDoc(sDoc.ref);
   }
-
-  // Delete the barber doc
   await deleteDoc(doc(db, COLLECTIONS.BARBERS, barberId));
-}
-
-export async function recordBarberPayment(barberIdOrPayload, legacyAmount) {
-  let barberId = "";
-  let barbershopId = "";
-  let barbershopName = "";
-  let barberName = "";
-  let staffId = "";
-  let staffName = "";
-  let cashAmount = 0;
-  let cardAmount = 0;
-  let discount = 0;
-  let note = "";
-
-  if (typeof barberIdOrPayload === "object" && barberIdOrPayload !== null) {
-    barberId = barberIdOrPayload.barberId;
-    barbershopId = barberIdOrPayload.barbershopId || "";
-    barbershopName = barberIdOrPayload.barbershopName || "";
-    barberName = barberIdOrPayload.barberName || "";
-    staffId = barberIdOrPayload.staffId || "";
-    staffName = barberIdOrPayload.staffName || "Xodim";
-    cashAmount = Number(barberIdOrPayload.cashAmount) || 0;
-    cardAmount = Number(barberIdOrPayload.cardAmount) || 0;
-    discount = Number(barberIdOrPayload.discount) || 0;
-    note = barberIdOrPayload.note || "";
-  } else {
-    barberId = barberIdOrPayload;
-    cashAmount = Number(legacyAmount) || 0;
-  }
-
-  const totalCredit = cashAmount + cardAmount + discount;
-  const totalPaid = cashAmount + cardAmount;
-
-  if (totalCredit <= 0) return null;
-
-  const todayStr = getTodayDateString();
-
-  return await runTransaction(db, async (transaction) => {
-    const barberRef = doc(db, COLLECTIONS.BARBERS, barberId);
-    const barberDoc = await transaction.get(barberRef);
-    if (!barberDoc.exists()) throw new Error("Sartarosh topilmadi");
-
-    const barberData = barberDoc.data();
-    const currentDebt = Number(barberData.debt) || 0;
-    const currentOverpaid = Number(barberData.overpaid) || 0;
-
-    let newDebt = currentDebt;
-    let newOverpaid = currentOverpaid;
-
-    if (totalCredit <= newDebt) {
-      newDebt -= totalCredit;
-    } else {
-      const remaining = totalCredit - newDebt;
-      newDebt = 0;
-      newOverpaid += remaining;
-    }
-
-    transaction.update(barberRef, {
-      debt: newDebt,
-      overpaid: newOverpaid,
-      updatedAt: serverTimestamp(),
-    });
-
-    // Create payment transaction in sales collection
-    const salesCol = collection(db, COLLECTIONS.SALES);
-    const saleDocRef = doc(salesCol);
-    transaction.set(saleDocRef, {
-      barberId,
-      barberName: barberName || barberData.name || "",
-      barbershopId: barbershopId || barberData.barbershopId || "",
-      barbershopName: barbershopName || "",
-      staffId: staffId || "unknown",
-      staffName: staffName || "Xodim",
-      quantityDelivered: 0,
-      returnedTowels: 0,
-      unitPrice: 0,
-      totalPrice: 0,
-      contractType: barberData.contractType || null,
-      cashAmount,
-      cardAmount,
-      discount,
-      totalPaid,
-      totalCredit,
-      note: note.trim(),
-      date: todayStr,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-    // Update daily report doc for driver
-    if (staffId) {
-      const reportId = `${staffId}_${todayStr}`;
-      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
-      const reportDoc = await transaction.get(reportRef);
-
-      if (reportDoc.exists()) {
-        const repData = reportDoc.data();
-        transaction.update(reportRef, {
-          cashAmount: (Number(repData.cashAmount) || 0) + cashAmount,
-          cardAmount: (Number(repData.cardAmount) || 0) + cardAmount,
-          discount: (Number(repData.discount) || 0) + discount,
-          totalPaid: (Number(repData.totalPaid) || 0) + totalPaid,
-          updatedAt: serverTimestamp(),
-        });
-      } else {
-        transaction.set(reportRef, {
-          staffId,
-          staffName: staffName || "Xodim",
-          date: todayStr,
-          cashAmount,
-          cardAmount,
-          discount,
-          totalPaid,
-          totalDelivered: 0,
-          totalReturned: 0,
-          salesCount: 0,
-          status: "active",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      }
-    }
-
-    return paymentDocRef.id;
-  });
 }
 
 // ========================
@@ -382,7 +258,7 @@ export async function createSale({
   barberId,
   barbershopId,
   staffId,
-  staffName,
+  staffName = "Xodim",
   barberName = "",
   barbershopName = "",
   quantityDelivered = 0,
@@ -396,14 +272,12 @@ export async function createSale({
 }) {
   const qty = Number(quantityDelivered) || 0;
   const returnedQty = Number(returnedTowels) || 0;
-  const price = Number(unitPrice) || 0;
-  const totalPrice = qty * price;
-
   const cash = Number(cashAmount) || 0;
   const card = Number(cardAmount) || 0;
   const disc = Number(discount) || 0;
-  const totalCredit = cash + card + disc;
+
   const totalPaid = cash + card;
+  const totalCredit = cash + card + disc;
 
   const todayStr = getTodayDateString();
 
@@ -414,81 +288,72 @@ export async function createSale({
     if (!barberDoc.exists()) throw new Error("Sartarosh topilmadi");
 
     const bData = barberDoc.data();
-    let currentDebt = Number(bData.debt) || 0;
-    let currentOverpaid = Number(bData.overpaid) || 0;
+    const contract = contractType || bData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
+    const price = Number(unitPrice) || Number(bData.pricePerTowel) || 3000;
 
-    // Delivery charge if contractType is payForTaken
-    if (contractType === CONTRACT_TYPES.PAY_FOR_TAKEN && totalPrice > 0) {
-      if (currentOverpaid >= totalPrice) {
-        currentOverpaid -= totalPrice;
-      } else {
-        const remaining = totalPrice - currentOverpaid;
-        currentOverpaid = 0;
-        currentDebt += remaining;
-      }
+    // Calculate charge
+    let chargedAmount = 0;
+    if (contract === CONTRACT_TYPES.PAY_FOR_TAKEN) {
+      chargedAmount = qty * price;
+    } else if (contract === CONTRACT_TYPES.PAY_FOR_USED) {
+      chargedAmount = returnedQty * price;
+    }
+    const totalPrice = chargedAmount;
+
+    // Current balances
+    const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
+    const currentDebt = Number(bData.debt) || 0;
+    const currentOverpaid = Number(bData.overpaid) || 0;
+
+    // Update towelsCount
+    const newTowelsCount = Math.max(0, currentTowels + qty - returnedQty);
+
+    // Update debt & overpaid
+    const netBalance = (currentDebt - currentOverpaid) + chargedAmount - totalCredit;
+    let newDebt = 0;
+    let newOverpaid = 0;
+    if (netBalance > 0) {
+      newDebt = netBalance;
+      newOverpaid = 0;
+    } else if (netBalance < 0) {
+      newDebt = 0;
+      newOverpaid = Math.abs(netBalance);
     }
 
-    // Return charge if contractType is payForUsed
-    if (
-      bData.contractType === CONTRACT_TYPES.PAY_FOR_USED &&
-      returnedQty > 0
-    ) {
-      const charge = returnedQty * (Number(bData.pricePerTowel) || price || 0);
-      if (currentOverpaid >= charge) {
-        currentOverpaid -= charge;
-      } else {
-        currentDebt += charge - currentOverpaid;
-        currentOverpaid = 0;
-      }
-    }
-
-    // Deduct payment (cash + card + discount)
-    if (totalCredit > 0) {
-      if (totalCredit <= currentDebt) {
-        currentDebt -= totalCredit;
-      } else {
-        const remaining = totalCredit - currentDebt;
-        currentDebt = 0;
-        currentOverpaid += remaining;
-      }
-    }
-
+    // Save to barber
     transaction.update(barberRef, {
-      debt: currentDebt,
-      overpaid: currentOverpaid,
+      towelsCount: newTowelsCount,
+      debt: newDebt,
+      overpaid: newOverpaid,
       updatedAt: serverTimestamp(),
     });
 
-    // 2. Add Sale Document
+    // 2. Add Sale Document (clean schema)
     const salesCol = collection(db, COLLECTIONS.SALES);
     const saleDocRef = doc(salesCol);
 
     transaction.set(saleDocRef, {
       barberId,
-      barbershopId,
+      barbershopId: barbershopId || bData.barbershopId || "",
       staffId: staffId || "unknown",
       staffName: staffName || "Xodim",
       barberName: barberName || bData.name || "",
-      barbershopName,
+      barbershopName: barbershopName || "",
       quantityDelivered: qty,
       returnedTowels: returnedQty,
       unitPrice: price,
       totalPrice,
-      contractType,
+      contractType: contract,
       cashAmount: cash,
       cardAmount: card,
       discount: disc,
-      totalPaid,
-      totalCredit,
       note: note.trim(),
       date: todayStr,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
-
-
-    // 4. Update Daily Report for driver
+    // 3. Update Daily Report for driver
     if (staffId) {
       const reportId = `${staffId}_${todayStr}`;
       const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
@@ -496,13 +361,20 @@ export async function createSale({
 
       if (reportDoc.exists()) {
         const rep = reportDoc.data();
+        const totalDelivered = (Number(rep.totalDelivered) || 0) + qty;
+        const totalReturned = (Number(rep.totalReturned) || 0) + returnedQty;
+        const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
+        const unsold = Number(rep.unsoldTowelsReturned) || 0;
+        const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
+
         transaction.update(reportRef, {
           cashAmount: (Number(rep.cashAmount) || 0) + cash,
           cardAmount: (Number(rep.cardAmount) || 0) + card,
           discount: (Number(rep.discount) || 0) + disc,
           totalPaid: (Number(rep.totalPaid) || 0) + totalPaid,
-          totalDelivered: (Number(rep.totalDelivered) || 0) + qty,
-          totalReturned: (Number(rep.totalReturned) || 0) + returnedQty,
+          totalDelivered,
+          totalReturned,
+          currentStock,
           salesCount: (Number(rep.salesCount) || 0) + 1,
           updatedAt: serverTimestamp(),
         });
@@ -511,12 +383,16 @@ export async function createSale({
           staffId,
           staffName: staffName || "Xodim",
           date: todayStr,
+          warehouseLoads: [],
+          totalLoadedFromWarehouse: 0,
+          totalDelivered: qty,
+          totalReturned: returnedQty,
+          currentStock: 0,
+          unsoldTowelsReturned: 0,
           cashAmount: cash,
           cardAmount: card,
           discount: disc,
           totalPaid,
-          totalDelivered: qty,
-          totalReturned: returnedQty,
           salesCount: 1,
           status: "active",
           createdAt: serverTimestamp(),
@@ -531,10 +407,10 @@ export async function createSale({
 
 export async function updateSale(
   saleId,
-  { quantityDelivered, returnedTowels, receivedMoney, cashAmount, cardAmount, discount }
+  { quantityDelivered, returnedTowels, cashAmount, cardAmount, discount, note }
 ) {
-  const qty = Number(quantityDelivered) || 0;
-  const returnedQty = Number(returnedTowels) || 0;
+  const newQty = Number(quantityDelivered) || 0;
+  const newReturnedQty = Number(returnedTowels) || 0;
 
   return await runTransaction(db, async (transaction) => {
     const saleRef = doc(db, COLLECTIONS.SALES, saleId);
@@ -542,95 +418,192 @@ export async function updateSale(
     if (!saleDoc.exists()) throw new Error("Sotuv topilmadi");
 
     const oldData = saleDoc.data();
-    const price = Number(oldData.unitPrice) || 0;
+    const price = Number(oldData.unitPrice) || 3000;
+    const contract = oldData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
+
     const oldQty = Number(oldData.quantityDelivered) || 0;
     const oldReturnedQty = Number(oldData.returnedTowels) || 0;
+    const oldCash = Number(oldData.cashAmount !== undefined ? oldData.cashAmount : (oldData.receivedMoney || 0));
+    const oldCard = Number(oldData.cardAmount) || 0;
+    const oldDisc = Number(oldData.discount) || 0;
 
-    const oldCredit =
-      oldData.totalCredit !== undefined
-        ? Number(oldData.totalCredit) || 0
-        : Number(oldData.receivedMoney) || 0;
+    const newCash = cashAmount !== undefined ? Number(cashAmount) || 0 : oldCash;
+    const newCard = cardAmount !== undefined ? Number(cardAmount) || 0 : oldCard;
+    const newDisc = discount !== undefined ? Number(discount) || 0 : oldDisc;
 
-    const cash =
-      cashAmount !== undefined
-        ? Number(cashAmount) || 0
-        : Number(oldData.cashAmount) || 0;
-    const card =
-      cardAmount !== undefined
-        ? Number(cardAmount) || 0
-        : Number(oldData.cardAmount) || 0;
-    const disc =
-      discount !== undefined
-        ? Number(discount) || 0
-        : Number(oldData.discount) || 0;
+    // Towel diffs
+    const oldTowelDelta = oldQty - oldReturnedQty;
+    const newTowelDelta = newQty - newReturnedQty;
+    const towelDeltaDiff = newTowelDelta - oldTowelDelta;
 
-    const newCredit =
-      cashAmount !== undefined || cardAmount !== undefined || discount !== undefined
-        ? cash + card + disc
-        : Number(receivedMoney) || 0;
+    // Money diffs
+    const oldCharge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? oldQty * price : oldReturnedQty * price;
+    const newCharge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? newQty * price : newReturnedQty * price;
+    const oldCredit = oldCash + oldCard + oldDisc;
+    const newCredit = newCash + newCard + newDisc;
+    const balanceDiff = (newCharge - oldCharge) - (newCredit - oldCredit);
 
-    const deliveryDiff =
-      oldData.contractType === CONTRACT_TYPES.PAY_FOR_TAKEN
-        ? (qty - oldQty) * price
-        : 0;
-    const returnDiff =
-      (returnedQty - oldReturnedQty) *
-      (oldData.contractType === CONTRACT_TYPES.PAY_FOR_USED ? price : 0);
-    const paymentDiff = newCredit - oldCredit;
-    const balanceDiff = deliveryDiff + returnDiff - paymentDiff;
-
-    if (balanceDiff !== 0) {
+    // Update Barber
+    if (oldData.barberId) {
       const barberRef = doc(db, COLLECTIONS.BARBERS, oldData.barberId);
       const barberDoc = await transaction.get(barberRef);
 
       if (barberDoc.exists()) {
-        let currentDebt = Number(barberDoc.data().debt) || 0;
-        let currentOverpaid = Number(barberDoc.data().overpaid) || 0;
+        const bData = barberDoc.data();
+        const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
+        const currentDebt = Number(bData.debt) || 0;
+        const currentOverpaid = Number(bData.overpaid) || 0;
 
-        if (balanceDiff > 0) {
-          if (currentOverpaid >= balanceDiff) {
-            currentOverpaid -= balanceDiff;
-          } else {
-            const rem = balanceDiff - currentOverpaid;
-            currentOverpaid = 0;
-            currentDebt += rem;
-          }
-        } else {
-          const credit = Math.abs(balanceDiff);
-          if (credit <= currentDebt) {
-            currentDebt -= credit;
-          } else {
-            const rem = credit - currentDebt;
-            currentDebt = 0;
-            currentOverpaid += rem;
-          }
+        const updatedTowelsCount = Math.max(0, currentTowels + towelDeltaDiff);
+        const netBalance = (currentDebt - currentOverpaid) + balanceDiff;
+        let newDebt = 0;
+        let newOverpaid = 0;
+        if (netBalance > 0) {
+          newDebt = netBalance;
+          newOverpaid = 0;
+        } else if (netBalance < 0) {
+          newDebt = 0;
+          newOverpaid = Math.abs(netBalance);
         }
 
         transaction.update(barberRef, {
-          debt: currentDebt,
-          overpaid: currentOverpaid,
+          towelsCount: updatedTowelsCount,
+          debt: newDebt,
+          overpaid: newOverpaid,
           updatedAt: serverTimestamp(),
         });
       }
     }
 
-    transaction.update(saleRef, {
-      quantityDelivered: qty,
-      returnedTowels: returnedQty,
-      cashAmount: cash,
-      cardAmount: card,
-      discount: disc,
-      totalPaid: cash + card,
-      totalCredit: newCredit,
-      receivedMoney: cash + card,
+    // Update Sale Doc
+    const saleUpdates = {
+      quantityDelivered: newQty,
+      returnedTowels: newReturnedQty,
+      totalPrice: newCharge,
+      cashAmount: newCash,
+      cardAmount: newCard,
+      discount: newDisc,
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (note !== undefined) saleUpdates.note = note.trim();
+    transaction.update(saleRef, saleUpdates);
+
+    // Update Daily Report if applicable
+    if (oldData.staffId && oldData.date) {
+      const reportId = `${oldData.staffId}_${oldData.date}`;
+      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+      const reportDoc = await transaction.get(reportRef);
+
+      if (reportDoc.exists()) {
+        const rep = reportDoc.data();
+        const deliveredDiff = newQty - oldQty;
+        const returnedDiff = newReturnedQty - oldReturnedQty;
+        const cashDiff = newCash - oldCash;
+        const cardDiff = newCard - oldCard;
+        const discDiff = newDisc - oldDisc;
+        const totalPaidDiff = (newCash + newCard) - (oldCash + oldCard);
+
+        const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) + deliveredDiff);
+        const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) + returnedDiff);
+        const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
+        const unsold = Number(rep.unsoldTowelsReturned) || 0;
+        const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
+
+        transaction.update(reportRef, {
+          totalDelivered,
+          totalReturned,
+          cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) + cashDiff),
+          cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) + cardDiff),
+          discount: Math.max(0, (Number(rep.discount) || 0) + discDiff),
+          totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) + totalPaidDiff),
+          currentStock,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
   });
 }
 
 export async function deleteSale(saleId) {
-  const saleRef = doc(db, COLLECTIONS.SALES, saleId);
-  await deleteDoc(saleRef);
+  return await runTransaction(db, async (transaction) => {
+    const saleRef = doc(db, COLLECTIONS.SALES, saleId);
+    const saleDoc = await transaction.get(saleRef);
+    if (!saleDoc.exists()) return;
+
+    const data = saleDoc.data();
+    const qty = Number(data.quantityDelivered) || 0;
+    const returnedQty = Number(data.returnedTowels) || 0;
+    const price = Number(data.unitPrice) || 3000;
+    const contract = data.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
+    const cash = Number(data.cashAmount) || 0;
+    const card = Number(data.cardAmount) || 0;
+    const disc = Number(data.discount) || 0;
+
+    // Revert barber
+    if (data.barberId) {
+      const barberRef = doc(db, COLLECTIONS.BARBERS, data.barberId);
+      const barberDoc = await transaction.get(barberRef);
+      if (barberDoc.exists()) {
+        const bData = barberDoc.data();
+        const currentTowels = Number(bData.towelsCount ?? 0);
+        const currentDebt = Number(bData.debt) || 0;
+        const currentOverpaid = Number(bData.overpaid) || 0;
+
+        const revertedTowels = Math.max(0, currentTowels - (qty - returnedQty));
+
+        const charge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? qty * price : returnedQty * price;
+        const credit = cash + card + disc;
+        const balanceDelta = -(charge - credit);
+
+        const netBalance = (currentDebt - currentOverpaid) + balanceDelta;
+        let newDebt = 0;
+        let newOverpaid = 0;
+        if (netBalance > 0) {
+          newDebt = netBalance;
+          newOverpaid = 0;
+        } else if (netBalance < 0) {
+          newDebt = 0;
+          newOverpaid = Math.abs(netBalance);
+        }
+
+        transaction.update(barberRef, {
+          towelsCount: revertedTowels,
+          debt: newDebt,
+          overpaid: newOverpaid,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    // Revert daily report
+    if (data.staffId && data.date) {
+      const reportId = `${data.staffId}_${data.date}`;
+      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+      const reportDoc = await transaction.get(reportRef);
+      if (reportDoc.exists()) {
+        const rep = reportDoc.data();
+        const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) - qty);
+        const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) - returnedQty);
+        const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
+        const unsold = Number(rep.unsoldTowelsReturned) || 0;
+        const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
+
+        transaction.update(reportRef, {
+          totalDelivered,
+          totalReturned,
+          cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) - cash),
+          cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) - card),
+          discount: Math.max(0, (Number(rep.discount) || 0) - disc),
+          totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) - (cash + card)),
+          salesCount: Math.max(0, (Number(rep.salesCount) || 1) - 1),
+          currentStock,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+
+    transaction.delete(saleRef);
+  });
 }
 
 export function subscribeSales(callback) {
@@ -641,18 +614,17 @@ export function subscribeSales(callback) {
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs
-        .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
-        .filter(
-          (item) =>
-            Number(item.quantityDelivered) > 0 ||
-            Number(item.returnedTowels) > 0 ||
-            Number(item.totalPaid) > 0 ||
-            Number(item.totalCredit) > 0 ||
-            Number(item.cashAmount) > 0 ||
-            Number(item.cardAmount) > 0 ||
-            Number(item.discount) > 0
-        );
+      const items = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+        quantityDelivered: Number(docItem.data().quantityDelivered || 0),
+        returnedTowels: Number(docItem.data().returnedTowels || 0),
+        cashAmount: Number(docItem.data().cashAmount || 0),
+        cardAmount: Number(docItem.data().cardAmount || 0),
+        discount: Number(docItem.data().discount || 0),
+        totalPrice: Number(docItem.data().totalPrice || 0),
+        totalPaid: Number(docItem.data().cashAmount || 0) + Number(docItem.data().cardAmount || 0),
+      }));
       callback(items);
     },
     (err) => console.error("Sales subscribe error:", err)
@@ -668,18 +640,17 @@ export function subscribeStaffSales(staffId, callback) {
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs
-        .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
-        .filter(
-          (item) =>
-            Number(item.quantityDelivered) > 0 ||
-            Number(item.returnedTowels) > 0 ||
-            Number(item.totalPaid) > 0 ||
-            Number(item.totalCredit) > 0 ||
-            Number(item.cashAmount) > 0 ||
-            Number(item.cardAmount) > 0 ||
-            Number(item.discount) > 0
-        );
+      const items = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+        quantityDelivered: Number(docItem.data().quantityDelivered || 0),
+        returnedTowels: Number(docItem.data().returnedTowels || 0),
+        cashAmount: Number(docItem.data().cashAmount || 0),
+        cardAmount: Number(docItem.data().cardAmount || 0),
+        discount: Number(docItem.data().discount || 0),
+        totalPrice: Number(docItem.data().totalPrice || 0),
+        totalPaid: Number(docItem.data().cashAmount || 0) + Number(docItem.data().cardAmount || 0),
+      }));
       callback(items);
     },
     (err) => console.error("Staff sales subscribe error:", err)
@@ -687,7 +658,7 @@ export function subscribeStaffSales(staffId, callback) {
 }
 
 // ========================
-// RETURN TRANSACTIONS
+// RETURN TRANSACTIONS (Helper for backwards-compat)
 // ========================
 
 export async function createReturn({
@@ -708,9 +679,12 @@ export async function createReturn({
     barberName,
     barbershopName,
     quantityDelivered: 0,
-    returnedTowels: quantityReturned,
+    returnedTowels: Number(quantityReturned) || 0,
     unitPrice: 0,
-    contractType: null,
+    contractType: CONTRACT_TYPES.PAY_FOR_USED,
+    cashAmount: 0,
+    cardAmount: 0,
+    discount: 0,
     note,
   });
 }
@@ -750,6 +724,26 @@ export function subscribeStaffReturns(staffId, callback) {
   );
 }
 
+// Payment recording helper
+export async function recordBarberPayment(payload) {
+  return createSale({
+    barberId: payload.barberId,
+    barbershopId: payload.barbershopId,
+    staffId: payload.staffId,
+    staffName: payload.staffName,
+    barberName: payload.barberName,
+    barbershopName: payload.barbershopName,
+    quantityDelivered: 0,
+    returnedTowels: 0,
+    unitPrice: 0,
+    contractType: null,
+    cashAmount: Number(payload.cashAmount) || 0,
+    cardAmount: Number(payload.cardAmount) || 0,
+    discount: Number(payload.discount) || 0,
+    note: payload.note || "",
+  });
+}
+
 // ========================
 // USERS / STAFF
 // ========================
@@ -783,10 +777,8 @@ export async function updateUserRole(uid, role) {
   });
 }
 
-
-
 // ========================
-// DAILY REPORTS
+// DAILY REPORTS & WAREHOUSE INVENTORY
 // ========================
 
 export function subscribeDailyReports(callback) {
@@ -826,10 +818,85 @@ export function subscribeStaffDailyReports(staffId, callback) {
   );
 }
 
-export async function closeDailyReport(reportId) {
+/**
+ * Record warehouse towel load (driver pickup from warehouse)
+ */
+export async function recordWarehouseLoad({ staffId, staffName, count, note = "" }) {
+  const loadCount = Number(count) || 0;
+  if (loadCount <= 0 || !staffId) return;
+
+  const todayStr = getTodayDateString();
+  const reportId = `${staffId}_${todayStr}`;
   const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("uz-UZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const newLoadEntry = {
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    time: timeStr,
+    count: loadCount,
+    note: note.trim() || "Ombordan olindi",
+    createdAt: now.toISOString(),
+  };
+
+  return await runTransaction(db, async (transaction) => {
+    const reportDoc = await transaction.get(reportRef);
+
+    if (reportDoc.exists()) {
+      const rep = reportDoc.data();
+      const existingLoads = Array.isArray(rep.warehouseLoads) ? rep.warehouseLoads : [];
+      const updatedLoads = [...existingLoads, newLoadEntry];
+      const totalLoaded = (Number(rep.totalLoadedFromWarehouse) || 0) + loadCount;
+      const totalDelivered = Number(rep.totalDelivered) || 0;
+      const unsold = Number(rep.unsoldTowelsReturned) || 0;
+      const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
+
+      transaction.update(reportRef, {
+        warehouseLoads: updatedLoads,
+        totalLoadedFromWarehouse: totalLoaded,
+        currentStock,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      transaction.set(reportRef, {
+        staffId,
+        staffName: staffName || "Xodim",
+        date: todayStr,
+        warehouseLoads: [newLoadEntry],
+        totalLoadedFromWarehouse: loadCount,
+        totalDelivered: 0,
+        totalReturned: 0,
+        currentStock: loadCount,
+        unsoldTowelsReturned: 0,
+        cashAmount: 0,
+        cardAmount: 0,
+        discount: 0,
+        totalPaid: 0,
+        salesCount: 0,
+        status: "active",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
+}
+
+/**
+ * Close daily report at end of day, recording unsold towels returned to warehouse
+ */
+export async function closeDailyReport(reportId, { unsoldTowelsReturned = 0, note = "" } = {}) {
+  const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+  const unsold = Number(unsoldTowelsReturned) || 0;
+
   await updateDoc(reportRef, {
     status: "closed",
+    unsoldTowelsReturned: unsold,
+    currentStock: 0,
+    closingNote: note.trim(),
     closedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

@@ -24,8 +24,8 @@ export function BarberModal({
   const [pricePerTowel, setPricePerTowel] = useState(
     barber?.pricePerTowel ?? 3000,
   );
-  const [initialTowels, setInitialTowels] = useState(
-    barber?.initialTowels ?? 0,
+  const [towelsCount, setTowelsCount] = useState(
+    barber?.towelsCount ?? barber?.initialTowels ?? 0,
   );
   const [debt, setDebt] = useState(barber?.debt ?? 0);
   const [overpaid, setOverpaid] = useState(barber?.overpaid ?? 0);
@@ -45,9 +45,7 @@ export function BarberModal({
         phone: phone.trim(),
         contractType,
         pricePerTowel: Number(pricePerTowel) || 0,
-        initialTowels: Number(initialTowels) || 0,
-        initialDebt: Number(debt) || 0,
-        initialOverpaid: Number(overpaid) || 0,
+        towelsCount: Number(towelsCount) || 0,
         debt: Number(debt) || 0,
         overpaid: Number(overpaid) || 0,
       });
@@ -225,18 +223,16 @@ export function BarberModal({
             </div>
           </div>
 
-          {/* Towel balance (initial or current) */}
+          {/* Towel balance */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              {barber
-                ? "Qo'lidagi sochiqlar soni (dona)"
-                : uz.admin.barbers.initialTowelsLabel}
+              Undagi bor sochiqlar soni (dona)
             </label>
             <input
               type="number"
               min="0"
-              value={initialTowels}
-              onChange={(e) => setInitialTowels(e.target.value)}
+              value={towelsCount}
+              onChange={(e) => setTowelsCount(e.target.value)}
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-500"
             />
           </div>
@@ -245,9 +241,7 @@ export function BarberModal({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {barber
-                  ? "Qarzdorlik summasi (so'm)"
-                  : uz.admin.barbers.initialDebtLabel}
+                Qarzi (so'm)
               </label>
               <input
                 type="number"
@@ -260,9 +254,7 @@ export function BarberModal({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {barber
-                  ? "Haqdorlik (Ortiqcha to'lov)"
-                  : uz.admin.barbers.initialOverpaidLabel}
+                Haqdorlik / Ortiqcha to'lov (so'm)
               </label>
               <input
                 type="number"

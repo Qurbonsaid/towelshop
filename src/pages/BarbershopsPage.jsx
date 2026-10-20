@@ -18,8 +18,8 @@ export function BarbershopsPage({
   role,
   barbershops = [],
   barbers = [],
-  sales = [],
-  returns = [],
+  _sales = [],
+  _returns = [],
 }) {
   const isAdmin = role === ROLES.ADMIN;
   const canManage = isAdmin || role === ROLES.STAFF;
@@ -49,35 +49,19 @@ export function BarbershopsPage({
       };
     });
 
-    const barberToShop = {};
     barbers.forEach((barber) => {
-      barberToShop[barber.id] = barber.barbershopId;
       if (map[barber.barbershopId]) {
         map[barber.barbershopId].barberCount += 1;
         map[barber.barbershopId].totalDebt += Number(barber.debt) || 0;
         map[barber.barbershopId].totalOverpaid += Number(barber.overpaid) || 0;
-        map[barber.barbershopId].heldTowels += Number(barber.initialTowels) || 0;
-      }
-    });
-
-    // Towel deliveries
-    sales.forEach((s) => {
-      const sId = s.barbershopId || barberToShop[s.barberId];
-      if (sId && map[sId]) {
-        map[sId].heldTowels += Number(s.quantityDelivered) || 0;
-      }
-    });
-
-    // Towel returns
-    returns.forEach((r) => {
-      const sId = r.barbershopId || barberToShop[r.barberId];
-      if (sId && map[sId]) {
-        map[sId].heldTowels -= Number(r.returnedTowels) || 0;
+        map[barber.barbershopId].heldTowels += Number(
+          barber.towelsCount !== undefined ? barber.towelsCount : (barber.initialTowels || 0)
+        );
       }
     });
 
     return map;
-  }, [barbershops, barbers, sales, returns]);
+  }, [barbershops, barbers]);
 
   // Filter barbershops by name in real-time
   const filteredShops = useMemo(() => {

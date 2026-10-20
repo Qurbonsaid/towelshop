@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Check, Edit, X } from "./icons";
+import { CONTRACT_TYPES } from "../constants/models";
 import { uz } from "../i18n/uz";
 
 export function SaleEditModal({ sale, isAdmin = false, onSave, onClose }) {
@@ -8,7 +9,7 @@ export function SaleEditModal({ sale, isAdmin = false, onSave, onClose }) {
     sale?.returnedTowels ?? 0,
   );
   const [cashAmount, setCashAmount] = useState(
-    sale?.cashAmount ?? (sale?.receivedMoney ?? 0),
+    sale?.cashAmount ?? 0,
   );
   const [cardAmount, setCardAmount] = useState(sale?.cardAmount ?? 0);
   const [discount, setDiscount] = useState(sale?.discount ?? 0);
@@ -20,7 +21,10 @@ export function SaleEditModal({ sale, isAdmin = false, onSave, onClose }) {
   const cardNum = Number(cardAmount) || 0;
   const discNum = Number(discount) || 0;
   const totalCredit = cashNum + cardNum + discNum;
-  const totalPrice = qtyNum * (Number(sale?.unitPrice) || 0);
+  const isPayUsed = sale?.contractType === CONTRACT_TYPES.PAY_FOR_USED;
+  const totalPrice = isPayUsed
+    ? returnedNum * (Number(sale?.unitPrice) || 0)
+    : qtyNum * (Number(sale?.unitPrice) || 0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +38,6 @@ export function SaleEditModal({ sale, isAdmin = false, onSave, onClose }) {
         cashAmount: cashNum,
         cardAmount: cardNum,
         discount: discNum,
-        receivedMoney: cashNum + cardNum,
       });
       onClose();
     } catch (err) {

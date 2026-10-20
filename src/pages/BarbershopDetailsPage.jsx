@@ -28,8 +28,8 @@ export function BarbershopDetailsPage({
   role,
   barbershops = [],
   barbers = [],
-  sales = [],
-  returns = [],
+  _sales = [],
+  _returns = [],
 }) {
   const { shopId } = useParams();
   const navigate = useNavigate();
@@ -56,27 +56,14 @@ export function BarbershopDetailsPage({
     !isNaN(currentShop?.longitude),
   );
 
-  // Calculate towels held per barber (delivered - returned)
+  // Calculate towels held per barber
   const barberTowelsHeldMap = useMemo(() => {
     const map = {};
     shopBarbers.forEach((b) => {
-      map[b.id] = Number(b.initialTowels) || 0;
+      map[b.id] = Number(b.towelsCount !== undefined ? b.towelsCount : (b.initialTowels || 0));
     });
-
-    sales.forEach((s) => {
-      if (s.barberId && map[s.barberId] !== undefined) {
-        map[s.barberId] += Number(s.quantityDelivered) || 0;
-      }
-    });
-
-    returns.forEach((r) => {
-      if (r.barberId && map[r.barberId] !== undefined) {
-        map[r.barberId] -= Number(r.returnedTowels) || 0;
-      }
-    });
-
     return map;
-  }, [shopBarbers, sales, returns]);
+  }, [shopBarbers]);
 
   // Open external navigation apps using coordinates
   const handleOpenNavigation = () => {

@@ -85,11 +85,10 @@ export function BarberDetailsPage({
       totalSalesSum += Number(s.totalPrice) || 0;
     });
 
-    const heldTowels = Math.max(
-      0,
-      (Number(currentBarber?.initialTowels) || 0) +
-        totalDelivered -
-        totalReturned,
+    const heldTowels = Number(
+      currentBarber?.towelsCount !== undefined
+        ? currentBarber.towelsCount
+        : currentBarber?.initialTowels || 0,
     );
     const currentDebt = Number(currentBarber?.debt) || 0;
     const overpaidBalance = Number(currentBarber?.overpaid) || 0;
@@ -169,7 +168,10 @@ export function BarberDetailsPage({
     const staffName = userProfile?.name || (isAdmin ? "Admin" : "Xodim");
     const barberName = currentBarber.name;
     const unitPrice = currentBarber.pricePerTowel || 3000;
-    const totalPrice = deliveredQuantity * unitPrice;
+    const totalPrice =
+      currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED
+        ? returnedQuantity * unitPrice
+        : deliveredQuantity * unitPrice;
 
     try {
       await createSale({
@@ -677,6 +679,56 @@ export function BarberDetailsPage({
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-emerald-500"
                 />
               </div>
+
+              {/* Live background calculation preview */}
+              {(() => {
+                const deliv = Number(deliveryQty) || 0;
+                const ret = Number(returnQty) || 0;
+                const c = Number(cashAmount) || 0;
+                const cd = Number(cardAmount) || 0;
+                const d = Number(discount) || 0;
+                const totalCredit = c + cd + d;
+                const price = Number(currentBarber.pricePerTowel) || 3000;
+                const isPayUsed = currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED;
+                const charged = isPayUsed ? ret * price : deliv * price;
+                const curTowels = Number(currentBarber.towelsCount ?? 0);
+                const projectedTowels = Math.max(0, curTowels + deliv - ret);
+                const curDebt = Number(currentBarber.debt) || 0;
+                const curOverpaid = Number(currentBarber.overpaid) || 0;
+                const net = (curDebt - curOverpaid) + charged - totalCredit;
+
+                if (deliv <= 0 && ret <= 0 && totalCredit <= 0) return null;
+
+                return (
+                  <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-3 text-[11px] space-y-1.5 animate-in fade-in duration-150">
+                    <p className="font-extrabold text-emerald-950 uppercase tracking-wide text-[10px]">
+                      Orqa fondagi hisob-kitob natijasi:
+                    </p>
+                    <div className="flex justify-between text-slate-700">
+                      <span>Sartaroshdagi sochiqlar soni:</span>
+                      <span className="font-bold text-slate-900">
+                        {curTowels} → <span className="text-emerald-700">{projectedTowels} dona</span>
+                      </span>
+                    </div>
+                    {charged > 0 && (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Hisoblangan summa ({isPayUsed ? "ishlatilganiga" : "olinganiga"}):</span>
+                        <span className="font-bold text-slate-900">
+                          {charged.toLocaleString()} so'm
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-emerald-200/80 pt-1 font-bold">
+                      <span>Kutilayotgan balans:</span>
+                      <span className={net > 0 ? "text-red-700" : net < 0 ? "text-sky-700" : "text-emerald-800"}>
+                        {net > 0 && `Qarz: ${net.toLocaleString()} so'm`}
+                        {net < 0 && `Ortiqcha to'lov: ${Math.abs(net).toLocaleString()} so'm`}
+                        {net === 0 && "Qarz yo'q (0 so'm)"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <button

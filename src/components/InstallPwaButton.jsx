@@ -84,6 +84,17 @@ export function InstallPwaButton() {
             </div>
 
             <div className="mt-3.5 space-y-2.5 text-xs text-slate-600">
+              <div className="rounded-xl bg-purple-50/80 p-3 border border-purple-200">
+                <p className="font-bold text-purple-950 mb-1">
+                  💻 Kompyuter (Chrome / Edge / Brave):
+                </p>
+                <p className="leading-snug">
+                  Brauzer manzil qatori (URL) o'ng tomonidagi{" "}
+                  <strong>"O'rnatish" (⬇️ yoki 🖥️)</strong> belgisini bosing yoki brauzer menyusidan (⋮){" "}
+                  <strong>"Towelshop ilovasini o'rnatish"</strong> bandini tanlang.
+                </p>
+              </div>
+
               <div className="rounded-xl bg-emerald-50/70 p-3 border border-emerald-200">
                 <p className="font-bold text-emerald-950 mb-1">
                   📱 Android (Chrome / Samsung Internet):

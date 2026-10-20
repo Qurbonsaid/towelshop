@@ -222,10 +222,6 @@ export function StaffManagementPage({
               currentPeriod === "today" ? todayDelivered : allDelivered;
             const displayReturned =
               currentPeriod === "today" ? todayReturned : allReturned;
-            const displayVisits =
-              currentPeriod === "today"
-                ? staffSalesToday.length
-                : staffSalesAll.length;
 
             return (
               <div
@@ -353,30 +349,38 @@ export function StaffManagementPage({
                   </div>
                 </div>
 
-                {/* Circulation: Delivered & Returned */}
-                <div className="grid grid-cols-3 gap-2 text-center text-xs bg-slate-50 rounded-xl p-2 border border-slate-100">
+                {/* Circulation: Warehouse loads, In Vehicle, Delivered & Returned */}
+                <div className="grid grid-cols-4 gap-1.5 text-center text-xs bg-slate-50 rounded-xl p-2 border border-slate-100">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">
+                      Ombordan
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      {currentPeriod === "today" ? (todayReport?.totalLoadedFromWarehouse || 0) : "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">
+                      Mashinada
+                    </span>
+                    <span className="font-bold text-emerald-700">
+                      {currentPeriod === "today" ? (todayReport?.currentStock || 0) : "-"}
+                    </span>
+                  </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">
                       Topshirildi
                     </span>
                     <span className="font-bold text-slate-800">
-                      {displayDelivered} dona
+                      {displayDelivered}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">
                       Qaytarildi
                     </span>
-                    <span className="font-bold text-slate-800">
-                      {displayReturned} dona
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">
-                      Sotuvlar
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      {displayVisits} ta
+                    <span className="font-bold text-sky-700">
+                      {displayReturned}
                     </span>
                   </div>
                 </div>
@@ -525,6 +529,29 @@ export function StaffManagementPage({
                         </span>
                         <span>{rep.salesCount || 0} ta savdo</span>
                       </div>
+
+                      {/* Warehouse Loads & Unsold returned */}
+                      {(rep.totalLoadedFromWarehouse > 0 || rep.unsoldTowelsReturned > 0) && (
+                        <div className="pt-1 border-t border-slate-200/80 text-[10px] text-slate-500 space-y-0.5">
+                          <div className="flex justify-between">
+                            <span>Ombordan olindi: <b>{rep.totalLoadedFromWarehouse || 0} ta</b></span>
+                            {rep.unsoldTowelsReturned > 0 && (
+                              <span className="text-amber-800 font-semibold">
+                                Sotilmay qaytdi: {rep.unsoldTowelsReturned} ta
+                              </span>
+                            )}
+                          </div>
+                          {Array.isArray(rep.warehouseLoads) && rep.warehouseLoads.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                              {rep.warehouseLoads.map((wl, wIdx) => (
+                                <span key={wl.id || wIdx} className="rounded bg-white px-1.5 py-0.5 border border-slate-200 font-mono text-[9px]">
+                                  {wl.time}: +{wl.count}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))
               )}

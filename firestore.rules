@@ -35,7 +35,8 @@ service cloud.firestore {
     // 2. Barbershops collection
     match /barbershops/{barbershopId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
     }
 
     // 3. Barbers collection
@@ -49,19 +50,7 @@ service cloud.firestore {
     // 4. Sales collection
     match /sales/{saleId} {
       allow read: if isAuthenticated();
-      allow create: if isStaff();
-
-      // Admins can edit any transaction.
-      // Staff can edit only their own transaction for 12 hours after creation.
-      // Staff cannot transfer ownership or rewrite the creation timestamp.
-      allow update: if isAdmin() || (
-        isStaff() &&
-        resource.data.staffId == request.auth.uid &&
-        request.resource.data.staffId == resource.data.staffId &&
-        request.resource.data.createdAt == resource.data.createdAt &&
-        request.time < resource.data.createdAt + duration.value(12, 'h')
-      );
-
+      allow create, update: if isStaff();
       // Only Admin can delete sales records
       allow delete: if isAdmin();
     }
