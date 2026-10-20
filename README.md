@@ -1,125 +1,258 @@
-# Towelshop — Professional Sochiq Yetkazib Berish va Hisob-kitob Tizimi (Mobile PWA)
+# Towelshop — Sochiq Yetkazib Berish va Moliyaviy Hisob-kitob Tizimi (PWA)
 
-Ishlab chiqarishga tayyor (production-ready), mobilga moslashtirilgan PWA ilova.
-Faqat O'zbek (Lotin) alifbosidagi toza interfeys bilan yaratilgan. Hech qanday rasm yuklash imkoniyati yo'q.
+**Towelshop** — sartaroshxonalarni 1 marta ishlatiladigan toza sochiqlar bilan ta'minlash, ishlatilgan sochiqlarni yig'ib olish, savdo va qarzdorliklarni yuritish hamda haydovchi-xodimning ombor va kassa aylanmasini nazorat qilish uchun mo'ljallangan serverless Progressive Web App (PWA).
 
----
-
-## 🛠 Texnologiyalar to'plami (Tech Stack)
-
-- **Frontend**: React 19 (Vite), Tailwind CSS, Lucide SVG Icons, React Leaflet (OpenStreetMap), Vite Plugin PWA (Workbox offline caching).
-- **Backend / BaaS**: Firebase Authentication, Cloud Firestore, Firebase Cloud Messaging (FCM), Firebase Cloud Functions (Node.js).
-- **Mobile First**: Smartfon brauzerlari va o'rnatiladigan PWA ilovalar uchun 44px+ sensor tugmalar, qulay bottom navigatsiya va kartochkali dizayn.
+Ilova mobil qurilmalarda (Android, iOS) hamda shaxsiy kompyuterlarda (Chrome, Edge, Brave) to'laqonli mustaqil dastur ko'rinishida ishlaydi.
 
 ---
 
-## 🔐 Autentifikatsiya va Rollar Tizimi
+## 🏢 Biznes modeli va ish jarayoni
 
-- **Telefon raqamidan emailga o'tkazish (Phone-to-Email Mapping)**:
-  Foydalanuvchi tizimga 9 xonali telefon raqami (masalan: `901234567`) va parol bilan kiradi. Ilova buni avtomatik ravishda `901234567@towelshop.local` formatiga aylantirib Firebase Auth orqali tekshiradi.
-- **Foydalanuvchi rollari (`/users/{uid}`)**:
-  1. **Admin (Administrator)**:
-     - Tizimga to'liq kirish huquqi.
-     - Sartaroshxonalar, sartaroshlar va xodimlarni boshqarish (to'liq CRUD).
-     - Barcha savdolarni istalgan vaqtda cheklovsiz tahrirlash (Master Sales Ledger).
-     - Xodimlar savdo kiritganda yoki tahrirlaganda real vaqtda FCM push-bildirishnoma qabul qilish.
-  2. **Staff (Xodim)**:
-     - Sochiq yetkazib berish (savdo) va qaytarish (yig'im) oqimlarini rasmiylashtirish.
-     - O'zi kiritgan sotuvlarni **faqat qat'iy 12 soatlik vaqt oralig'ida** tahrirlash (orqaga sanovchi taymer bilan). 12 soatdan so'ng tahrirlash bloklanadi.
-     - Sartaroshxona yoki sartarosh qo'shish/o'chirish huquqi yo'q.
-  3. **Barber (Mijoz sartarosh)**:
-     - Tizimga kirmaydigan, ma'lumotlar bazasida Admin va Xodim tomonidan boshqariladigan mijoz obyekti.
+1. **Admin (Biznes egasi):**
+   - Sochiqlarni tayyorlaydi, yuvadi va omborda saqlaydi.
+   - Xodimlarni (haydovchilarni) boshqaradi, ularning roli va hisobotlarini nazorat qiladi.
+   - Butun tizimdagi ma'lumotlarni o'chirish (`delete`) huquqiga ega yagona shaxs.
 
----
+2. **Xodim (Haydovchi):**
+   - Ish kuni boshida yoki sochiq tugaganda Admin omboridan yangi sochiq olib ketadi.
+   - Sartaroshxonalarga borib, sartaroshlarga yangi sochiqlarni yetkazadi, ishlatilganlarini qaytarib oladi.
+   - Naqd va karta (Click) to'lovlarni qabul qiladi, zarurat bo'lganda chegirma beradi.
+   - Kun yakunida kassadagi pulni va **sotilmay qolgan yangi sochiqlarni** omborga topshiradi va kunlik hisobotni yopadi.
+   - Xodim barcha savdo, yetkazish va qabul qilish amallarini **cheklovlarsiz** (vaqt cheklovisiz) amalga oshira oladi.
 
-## 📊 Ma'lumotlar sxemasi (Firestore Collections)
-
-1. **`/barbershops`**
-   - `id`: Hujjat ID si
-   - `name`: Nomi (masalan: "Markaziy Barber Lounge")
-   - `address`: Manzil / Mo'ljal
-   - `phone`: Aloqa telefoni
-   - `latitude`, `longitude`: Xaritadagi koordinatalar (Leaflet Map Modal orqali belgilanadi)
-   - `createdAt`: serverTimestamp()
-
-2. **`/barbers`**
-   - `id`: Hujjat ID si
-   - `barbershopId`: Biriktirilgan sartaroshxona ID si
-   - `name`: Ism-familiyasi
-   - `phone`: Telefon raqami
-   - `contractType`: `"payForTaken"` (Olingan sochiq uchun darhol qarz) yoki `"payForUsed"` (Faqat ishlatilgan/qaytarilgan sochiq uchun)
-   - `pricePerTowel`: Bitta toza sochiq narxi (so'm)
-   - `debt`: Joriy qarz summasi
-   - `overpaid`: Joriy haqdorlik (oldindan to'langan ortiqcha summa)
-   - `createdAt`: serverTimestamp()
-
-3. **`/sales`**
-   - `id`: Hujjat ID si
-   - `barberId`: Sartarosh ID si
-   - `barbershopId`: Sartaroshxona ID si
-   - `staffId`: Sotuvni amalga oshirgan xodim ID si
-   - `staffName`: Xodim ismi
-   - `barberName`: Sartarosh ismi
-   - `barbershopName`: Sartaroshxona nomi
-   - `quantityDelivered`: Yetkazilgan toza sochiq soni
-   - `unitPrice`: 1 dona sochiq narxi
-   - `totalPrice`: Jami summa (`quantityDelivered * unitPrice`)
-   - `contractType`: Shartnoma turi
-   - `note`: Izoh
-   - `createdAt`: serverTimestamp()
-   - `updatedAt`: serverTimestamp()
-
-4. **`/returns`**
-   - `id`: Hujjat ID si
-   - `barberId`: Sartarosh ID si
-   - `barbershopId`: Sartaroshxona ID si
-   - `staffId`: Qabul qilib olgan xodim ID si
-   - `staffName`: Xodim ismi
-   - `quantityReturned`: Qaytarib olingan ishlatilgan sochiqlar soni
-   - `note`: Izoh
-   - `createdAt`: serverTimestamp()
-
-5. **`/users/{uid}`**
-   - `uid`: Foydalanuvchi ID si
-   - `phone`: 9 xonali telefon raqami
-   - `name`: Ism-familiyasi
-   - `role`: `"admin"` yoki `"staff"`
-   - `fcmTokens`: Web Push xabarnomalari uchun FCM tokenlari massivi
-   - `createdAt`: serverTimestamp()
+3. **Sartaroshlar bilan shartnoma turlari:**
+   - **`payForTaken` (Olinganiga to'laydi):** Sartarosh olgan har bir yangi toza sochiq uchun darhol haq to'laydi yoki hisobiga qarz yoziladi (`quantityDelivered * pricePerTowel`).
+   - **`payForUsed` (Ishlatilganiga to'laydi):** Sartarosh sochiqni zaxirada saqlaydi va faqat ishlatib, haydovchiga qaytarib topshirgan sochiqlari soni bo'yicha to'laydi (`returnedTowels * pricePerTowel`).
 
 ---
 
-## 🔔 Push-bildirishnomalar (FCM)
+## ⚡️ Asosiy Imkoniyatlar
 
-- **Service Worker (`public/firebase-messaging-sw.js`)**: Fon rejimida (brauzer yopiq yoki minimallashtirilgan bo'lsa ham) xabarnomalarni ko'rsatish uchun ro'yxatdan o'tkazilgan.
-- **Admin tokenini saqlash**: Admin tizimga kirganida brauzerdan ruxsat so'raladi va olingan Web Push tokeni `/users/{uid}.fcmTokens` maydoniga yoziladi.
-- Push xabarlari brauzer va Firebase Messaging service worker orqali boshqariladi.
+- **Yagona Oynali Savdo Formasi:**
+  Xodim bitta qulay oynada bir vaqtning o'zida:
+  - Berilgan yangi sochiqlar soni (`quantityDelivered`),
+  - Qaytarib olingan ishlatilgan sochiqlar soni (`returnedTowels`),
+  - Naqd pul to'lovi (`cashAmount`),
+  - Click / Karta to'lovi (`cardAmount`),
+  - Chegirma summasi (`discount`),
+  - Izoh (`note`) kiritadi.
+  Hamma hisob-kitob (sartaroshdagi yangi sochiqlar soni, yangi qarz yoki haqdorlik) **orqa fonda avtomatik** bajariladi va saqlashdan oldin jonli ko'rinadi (live preview).
+
+- **Haydovchining Tovar Qoldig'i va Ombor Zaxirasi:**
+  - Haydovchi har doim o'zida ayni vaqtda sotish uchun qancha yangi sochiq borligini (`currentStock`) ko'rib turadi.
+  - Kun davomida "Ombordan sochiq olish" tugmasi orqali ombordan yuklangan sochiqlar tarixi (vaqtlari va soni) bilan qayd etib boriladi.
+  - Kun yakunida sotilmay qolgan yangi sochiqlar (`unsoldTowelsReturned`) qayd etiladi va kassa hisoboti yopiladi.
+
+- **Sartaroshxonalar Xaritasi (GPS & OpenStreetMap):**
+  - Sartaroshxona nomi, telefoni, manzili va aniq koordinatalari saqlanadi.
+  - Xodim interaktiv xaritadan yoki joylashuv (Geolokatsiya) orqali sartaroshxona o'rnini belgilashi va xaritada ko'rishi mumkin.
+
+- **Push-bildirishnomalar (Firebase Cloud Messaging):**
+  - Xodim savdo qilganida, to'lov qabul qilganda yoki kunlik hisobotni topshirganda Adminga real vaqtda push-xabarnoma boradi.
+
+- **To'liq PWA (Kompyuter va Mobil):**
+  - Offline rejimda ishlash imkoniyati (Workbox Service Worker).
+  - Kompyuterda Chrome / Edge orqali mustaqil ish stoli ilovasi sifatida o'rnatish (192px va 512px PNG ikonkalar bilan ta'minlangan).
 
 ---
 
-## 🛡 Firestore Xavfsizlik Qoidalari (`firestore.rules`)
+## 🔐 Foydalanuvchilar va Huquqlar
 
-- **12 soatlik qat'iy cheklov**:
-  ```javascript
-  request.time < resource.data.createdAt + duration.value(12, 'h')
-  ```
-  Xodim faqat o'zi kiritgan sotuvni dastlabki 12 soat ichida tahrir qilishi mumkin. 12 soatdan so'ng tahrirlash huquqi faqat Adminga beriladi.
+| Huquqlar / Imkoniyatlar | Admin | Xodim (Haydovchi) |
+|---|:---:|:---:|
+| Tizimga telefon raqam va parol bilan kirish | ✅ | ✅ |
+| Yangi sartaroshxona va sartarosh qo'shish | ✅ | ✅ |
+| Savdo qilish (Yetkazish, Qaytarish, To'lov, Chegirma) | ✅ | ✅ |
+| O'z savdolarini va hisob-kitoblarni cheklovlarsiz tahrirlash | ✅ | ✅ |
+| Ombordan sochiq olish va kunni yopish | ✅ | ✅ |
+| Xodimlarni boshqarish va rollarni o'zgartirish | ✅ | ❌ |
+| Ma'lumotlarni butunlay o'chirish (`deleteDoc`) | ✅ | ❌ |
+| Push-bildirishnomalarni qabul qilish | ✅ | ❌ |
 
 ---
 
-## 🚀 Ishga tushirish
+## 📊 Ma'lumotlar Bazasi Sxemasi (Cloud Firestore)
 
-1. **Bog'liqliklarni o'rnatish**:
-   ```bash
-   npm install
-   ```
+Barcha kolleksiyalar optimallashtirilgan, ortiqcha va eski maydonlardan tozalangan:
 
-2. **Dasturni ishga tushirish**:
-   ```bash
-   npm run dev
-   ```
+### 1. `/barbershops` (Sartaroshxonalar)
+```json
+{
+  "name": "Fed",
+  "address": "Mustaqillik ko'chasi 14",
+  "phone": "998400001",
+  "latitude": 37.451077,
+  "longitude": 67.153558,
+  "createdAt": "Timestamp",
+  "updatedAt": "Timestamp"
+}
+```
 
-3. **Production Build**:
-   ```bash
-   npm run build
-   ```
+### 2. `/barbers` (Sartaroshlar)
+```json
+{
+  "barbershopId": "pofT0tPOQfBCiYUPnXrv",
+  "name": "Husraf",
+  "phone": "998441408",
+  "contractType": "payForTaken", // yoki "payForUsed"
+  "pricePerTowel": 3000,
+  "towelsCount": 15,            // Sartaroshdagi bor sochiqlar soni
+  "debt": 24000,                // Qarzdorlik summasi (so'm)
+  "overpaid": 0,                // Haqdorlik / Ortiqcha to'lov (so'm)
+  "createdAt": "Timestamp",
+  "updatedAt": "Timestamp"
+}
+```
+
+### 3. `/sales` (Savdo va amallar tarixi)
+```json
+{
+  "barberId": "7f6B5euuRBUTTEcOBHc5",
+  "barbershopId": "CmNqYoInW6KeYn1JsQAW",
+  "staffId": "4Fsq1WcdNTZ6giKWk5zgVrYUHM23",
+  "staffName": "Каримов Абдулазиз",
+  "barberName": "Izzat aka",
+  "barbershopName": "Izzat aka movoro",
+  "quantityDelivered": 8,       // Berilgan yangi sochiqlar
+  "returnedTowels": 8,          // Qaytarib olingan ishlatilgan sochiqlar
+  "unitPrice": 3000,            // 1 dona narxi
+  "totalPrice": 24000,          // Hisoblangan xizmat summasi
+  "contractType": "payForTaken",
+  "cashAmount": 20000,          // Naqd to'lov
+  "cardAmount": 4000,           // Karta / Click to'lov
+  "discount": 0,                // Chegirma
+  "note": "To'liq hisob-kitob qilindi",
+  "date": "2026-10-20",
+  "createdAt": "Timestamp",
+  "updatedAt": "Timestamp"
+}
+```
+
+### 4. `/dailyReports` (Kunlik hisobot va ombor oqimi)
+```json
+{
+  "date": "2026-10-20",
+  "staffId": "4Fsq1WcdNTZ6giKWk5zgVrYUHM23",
+  "staffName": "Каримов Абдулазиз",
+  "warehouseLoads": [           // Ombordan olinganlar tarixi
+    {
+      "time": "08:30",
+      "count": 200,
+      "note": "Ertalabki yuklash",
+      "createdAt": "2026-10-20T03:30:00.000Z"
+    }
+  ],
+  "totalLoadedFromWarehouse": 200, // Ombordan jami olingan
+  "currentStock": 50,              // Ayni paytda mashinada bor yangi sochiqlar
+  "totalDelivered": 150,           // Sartaroshlarga tarqatilgan
+  "totalReturned": 130,            // Qaytarib olingan ishlatilgan
+  "unsoldTowelsReturned": 50,      // Ish yakunida omborga topshirilgan sotilmagan yangi sochiqlar
+  "cashAmount": 350000,            // Jami yig'ilgan naqd
+  "cardAmount": 100000,            // Jami Click / Karta
+  "discount": 10000,               // Jami chegirmalar
+  "totalPaid": 450000,             // Jami qabul qilingan summa (Naqd + Karta)
+  "salesCount": 18,                // Amalga oshirilgan savdolar soni
+  "status": "closed",              // "active" yoki "closed"
+  "updatedAt": "Timestamp",
+  "closedAt": "Timestamp"
+}
+```
+
+### 5. `/users` (Foydalanuvchilar)
+```json
+{
+  "phone": "938001223",
+  "name": "Каримов Абдулазиз",
+  "role": "staff",                 // "admin" yoki "staff"
+  "fcmTokens": ["..."],
+  "createdAt": "Timestamp"
+}
+```
+
+---
+
+## 🧮 Moliyaviy va Tovar Hisob-kitob Formulalari
+
+1. **Sartaroshdagi sochiqlar soni:**
+   $$\text{towelsCount}_{\text{yangi}} = \text{towelsCount}_{\text{eski}} + \text{quantityDelivered} - \text{returnedTowels}$$
+
+2. **Hisoblangan xizmat summasi ($\text{totalPrice}$):**
+   - Agar `contractType === "payForTaken"`: $\text{quantityDelivered} \times \text{unitPrice}$
+   - Agar `contractType === "payForUsed"`: $\text{returnedTowels} \times \text{unitPrice}$
+
+3. **Qarz va Haqdorlik balansi:**
+   $$\text{totalCredit} = \text{cashAmount} + \text{cardAmount} + \text{discount}$$
+   $$\text{Net} = (\text{debt} - \text{overpaid}) + \text{totalPrice} - \text{totalCredit}$$
+   - Agar $\text{Net} > 0$ bo'lsa: $\text{debt} = \text{Net}, \quad \text{overpaid} = 0$
+   - Agar $\text{Net} < 0$ bo'lsa: $\text{debt} = 0, \quad \text{overpaid} = |\text{Net}|$
+   - Agar $\text{Net} = 0$ bo'lsa: $\text{debt} = 0, \quad \text{overpaid} = 0$
+
+4. **Haydovchi mashinasidagi yangi sochiqlar qoldig'i:**
+   $$\text{currentStock} = \text{totalLoadedFromWarehouse} - \text{totalDelivered} - \text{unsoldTowelsReturned}$$
+
+---
+
+## 🛠 Texnologiyalar To'plami
+
+- **Frontend:** React 19, Vite, Tailwind CSS, React Router v7.
+- **Xaritalar:** React Leaflet, Leaflet, OpenStreetMap.
+- **PWA:** `vite-plugin-pwa`, Workbox, Web App Manifest, Service Worker.
+- **Backend / Ma'lumotlar:** Google Firebase Cloud Firestore, Firebase Authentication, Firebase Cloud Messaging.
+- **Admin Tooling:** Node.js, `firebase-admin` SDK (`towelshop-admin/optimize-database.js`).
+- **Sifat va Tezlik:** `oxlint` (tezkor Rust asosidagi JS linter).
+
+---
+
+## 💻 Kompyuter va Telefonga O'rnatish (PWA)
+
+### Kompyuterda (Google Chrome / Microsoft Edge / Brave):
+1. Saytni brauzerda oching (`http://localhost:5173` yoki domen manzili).
+2. Manzil qatori (URL bar)ning o'ng tomonida paydo bo'ladigan **"O'rnatish" (⬇️ yoki 🖥️)** belgisini bosing.
+3. Yoki brauzer menyusidan (**⋮**) **"Towelshop ilovasini o'rnatish"** bandini tanlang.
+4. Ilova alohida mustaqil oyna sifatida kompyuterga o'rnatiladi.
+
+### Android (Chrome / Samsung Internet):
+- Sayt ochilgach, ekranning yuqori o'ng burchagidagi **uch nuqta (⋮)** ni bosing va **"Ilovani o'rnatish"** (yoki "Bosh ekranga qo'shish") bandini tanlang.
+
+### iPhone / iPad (Safari):
+- Brauzerning pastki qismidagi **"Ulashish" (Share)** tugmasini bosing va menyudan **"Bosh ekranga qo'shish" (Add to Home Screen)** ni tanlang.
+
+---
+
+## 🚀 Ishga Tushirish
+
+### 1. Bog'liqliklarni o'rnatish:
+```bash
+npm install
+```
+
+### 2. Dasturni lokal ishga tushirish (Dev mode):
+```bash
+npm run dev
+```
+
+### 3. Kod sifatini tekshirish (Linter):
+```bash
+npm run lint
+```
+
+### 4. Ishlab chiqarishga yig'ish (Production Build):
+```bash
+npm run build
+```
+
+---
+
+## 🗄 Ma'lumotlar Bazasini Boshqarish (`towelshop-admin`)
+
+Loyiha yonidagi `towelshop-admin` papkasi orqali Firebase Admin SDK yordamida ma'lumotlar bazasini batch rejimda optimallashtirish va eksport qilish mumkin:
+
+```bash
+cd ../towelshop-admin
+node optimize-database.js
+```
+Bu skript:
+- Barcha sartaroshlarni `towelsCount` tizimiga o'tkazadi va eski maydonlarni o'chiradi;
+- Savdolardagi eski `receivedMoney`, `totalPaid` maydonlarini tozalab, `cashAmount`, `cardAmount`, `discount` sxemasiga moslaydi;
+- Kunlik hisobotlarga ombor yuklamalari va qoldiqlarni biriktiradi;
+- Toza ma'lumotlarni JSON fayllarga eksport qiladi.
