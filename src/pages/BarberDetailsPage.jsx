@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
   DollarSign,
@@ -16,7 +16,6 @@ import { ROLES } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
 import {
-  createSale,
   deleteBarberCascade,
   recordBarberPayment,
   updateBarber,
@@ -34,19 +33,12 @@ export function BarberDetailsPage({
 }) {
   const { shopId, barberId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isAdmin = role === ROLES.ADMIN;
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  // Sale modal state ("Sotish")
-  const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
-  const [deliveryQty, setDeliveryQty] = useState("");
-  const [returnQty, setReturnQty] = useState("");
-  const [saleNote, setSaleNote] = useState("");
-  const [cashAmount, setCashAmount] = useState("");
-  const [cardAmount, setCardAmount] = useState("");
-  const [discount, setDiscount] = useState("");
-  const [saleSubmitting, setSaleSubmitting] = useState(false);
+
 
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -54,6 +46,14 @@ export function BarberDetailsPage({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  // Receive success toast if navigated back from NewSalePage
+  useEffect(() => {
+    if (location.state?.toast) {
+      showToast(location.state.toast);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const currentBarber = useMemo(() => {
     return barbers.find((b) => b.id === barberId);
@@ -359,7 +359,7 @@ export function BarberDetailsPage({
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={handleOpenSale}
+            onClick={() => navigate(`/sartaroshxonalar/${shopId}/barber/${barberId}/sale`)}
             className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-2.5 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
           >
             <Package size={15} />
@@ -487,276 +487,6 @@ export function BarberDetailsPage({
           )}
         </div>
       </div>
-
-      {/* Unified Sale Modal ("Sotish") */}
-      {isSaleModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                  <Package size={18} />
-                </div>
-                <h3 className="text-base font-bold text-slate-900">
-                  {uz.barberDetails.saleTitle}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSaleModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaleSubmit} className="mt-4 space-y-3">
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {uz.barberDetails.deliveryQtyLabel}
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  autoFocus
-                  value={deliveryQty}
-                  onChange={(e) => setDeliveryQty(e.target.value)}
-                  placeholder="Masalan: 30"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                />
-                {Number(deliveryQty) > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-emerald-800 font-medium">
-                      {uz.barberDetails.totalAmountLabel}:
-                    </span>
-                    <span className="text-sm font-extrabold text-emerald-950">
-                      {(
-                        Number(deliveryQty) *
-                        (currentBarber.pricePerTowel || 3000)
-                      ).toLocaleString()}{" "}
-                      {uz.common.sum}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-sky-200 bg-sky-50/60 p-3">
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {uz.barberDetails.returnQtyLabel}
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={returnQty}
-                  onChange={(e) => setReturnQty(e.target.value)}
-                  placeholder="Masalan: 25"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-200"
-                />
-                {currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED &&
-                  Number(returnQty) > 0 && (
-                    <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sky-800 font-medium">
-                          Hisob-kitob summasi:
-                        </span>
-                        <span className="text-sm font-extrabold text-sky-950">
-                          {(
-                            Number(returnQty) *
-                            (currentBarber.pricePerTowel || 3000)
-                          ).toLocaleString()}{" "}
-                          {uz.common.sum}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-[11px] text-sky-700">
-                        Ishlatilgan sochiqlar bo'yicha to'lov sartarosh hisobiga
-                        yoziladi.
-                      </p>
-                    </>
-                  )}
-              </div>
-
-              {/* Payment inputs: Naqd, Click, Chegirma */}
-              <div className="space-y-2.5 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                <p className="text-xs font-bold text-slate-800">
-                  To'lov qabul qilish (ixtiyoriy)
-                </p>
-
-                {/* Naqd */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                    Naqd pul (so'm)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={cashAmount}
-                    onChange={(e) => setCashAmount(e.target.value)}
-                    placeholder="Masalan: 50000"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                {/* Click / Karta */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                    Click / Karta (so'm)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={cardAmount}
-                    onChange={(e) => setCardAmount(e.target.value)}
-                    placeholder="Masalan: 30000"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                {/* Chegirma */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
-                    Chegirma (so'm)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
-                    placeholder="Masalan: 5000"
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                {/* Live total payment summary */}
-                {(Number(cashAmount) > 0 ||
-                  Number(cardAmount) > 0 ||
-                  Number(discount) > 0) && (
-                  <div className="pt-2 border-t border-slate-200 text-[11px] space-y-1">
-                    <div className="flex justify-between font-semibold text-slate-700">
-                      <span>Jami to'lov (Naqd + Click):</span>
-                      <span>
-                        {(
-                          (Number(cashAmount) || 0) + (Number(cardAmount) || 0)
-                        ).toLocaleString()}{" "}
-                        {uz.common.sum}
-                      </span>
-                    </div>
-                    {Number(discount) > 0 && (
-                      <div className="flex justify-between font-semibold text-amber-800">
-                        <span>Chegirma:</span>
-                        <span>
-                          {(Number(discount) || 0).toLocaleString()}{" "}
-                          {uz.common.sum}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between font-bold text-emerald-800 pt-1 border-t border-slate-200">
-                      <span>Qarzdan chegiriladi:</span>
-                      <span>
-                        {(
-                          (Number(cashAmount) || 0) +
-                          (Number(cardAmount) || 0) +
-                          (Number(discount) || 0)
-                        ).toLocaleString()}{" "}
-                        {uz.common.sum}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {uz.barberDetails.noteLabel}
-                </label>
-                <input
-                  type="text"
-                  value={saleNote}
-                  onChange={(e) => setSaleNote(e.target.value)}
-                  placeholder="Ixtiyoriy izoh..."
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              {/* Live background calculation preview */}
-              {(() => {
-                const deliv = Number(deliveryQty) || 0;
-                const ret = Number(returnQty) || 0;
-                const c = Number(cashAmount) || 0;
-                const cd = Number(cardAmount) || 0;
-                const d = Number(discount) || 0;
-                const totalCredit = c + cd + d;
-                const price = Number(currentBarber.pricePerTowel) || 3000;
-                const isPayUsed = currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED;
-                const charged = isPayUsed ? ret * price : deliv * price;
-                const curTowels = Number(currentBarber.towelsCount ?? 0);
-                const projectedTowels = Math.max(0, curTowels + deliv - ret);
-                const curDebt = Number(currentBarber.debt) || 0;
-                const curOverpaid = Number(currentBarber.overpaid) || 0;
-                const net = (curDebt - curOverpaid) + charged - totalCredit;
-
-                if (deliv <= 0 && ret <= 0 && totalCredit <= 0) return null;
-
-                return (
-                  <div className="rounded-xl border border-emerald-300 bg-emerald-50/90 p-3 text-[11px] space-y-1.5 animate-in fade-in duration-150">
-                    <p className="font-extrabold text-emerald-950 uppercase tracking-wide text-[10px]">
-                      Orqa fondagi hisob-kitob natijasi:
-                    </p>
-                    <div className="flex justify-between text-slate-700">
-                      <span>Sartaroshdagi sochiqlar soni:</span>
-                      <span className="font-bold text-slate-900">
-                        {curTowels} → <span className="text-emerald-700">{projectedTowels} dona</span>
-                      </span>
-                    </div>
-                    {charged > 0 && (
-                      <div className="flex justify-between text-slate-700">
-                        <span>Hisoblangan summa ({isPayUsed ? "ishlatilganiga" : "olinganiga"}):</span>
-                        <span className="font-bold text-slate-900">
-                          {charged.toLocaleString()} so'm
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between border-t border-emerald-200/80 pt-1 font-bold">
-                      <span>Kutilayotgan balans:</span>
-                      <span className={net > 0 ? "text-red-700" : net < 0 ? "text-sky-700" : "text-emerald-800"}>
-                        {net > 0 && `Qarz: ${net.toLocaleString()} so'm`}
-                        {net < 0 && `Ortiqcha to'lov: ${Math.abs(net).toLocaleString()} so'm`}
-                        {net === 0 && "Qarz yo'q (0 so'm)"}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsSaleModalOpen(false)}
-                  className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {uz.common.cancel}
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    saleSubmitting ||
-                    (!deliveryQty &&
-                      !returnQty &&
-                      !cashAmount &&
-                      !cardAmount &&
-                      !discount)
-                  }
-                  className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
-                >
-                  {saleSubmitting ? uz.common.loading : uz.common.confirm}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Standalone Barber Payment Modal */}
       {isPaymentModalOpen && (

@@ -14,6 +14,7 @@ import { BarbershopDetailsPage } from "./pages/BarbershopDetailsPage";
 import { BarbershopsPage } from "./pages/BarbershopsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MapView } from "./pages/MapView";
+import { NewSalePage } from "./pages/NewSalePage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SalesPage } from "./pages/SalesPage";
 import { StaffManagementPage } from "./pages/StaffManagementPage";
@@ -236,6 +237,34 @@ function App() {
               />
             }
           />
+          <Route
+            path="/sartaroshxonalar/:shopId/barber/:barberId/sale"
+            element={
+              <NewSalePage
+                role={role}
+                userId={user.uid}
+                userProfile={userProfile}
+                barbershops={barbershops}
+                barbers={barbers}
+                sales={sales}
+                returns={returns}
+              />
+            }
+          />
+          <Route
+            path="/sartaroshxonalar/:shopId/barber/:barberId/yangi-savdo"
+            element={
+              <NewSalePage
+                role={role}
+                userId={user.uid}
+                userProfile={userProfile}
+                barbershops={barbershops}
+                barbers={barbers}
+                sales={sales}
+                returns={returns}
+              />
+            }
+          />
 
           {/* 2. Sales / Transactions Route */}
           <Route
@@ -245,6 +274,20 @@ function App() {
                 role={role}
                 userId={user.uid}
                 userProfile={userProfile}
+                sales={sales}
+                returns={returns}
+              />
+            }
+          />
+          <Route
+            path="/savdolar/yangi"
+            element={
+              <NewSalePage
+                role={role}
+                userId={user.uid}
+                userProfile={userProfile}
+                barbershops={barbershops}
+                barbers={barbers}
                 sales={sales}
                 returns={returns}
               />

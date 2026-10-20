@@ -1,9 +1,12 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import {
+  CheckCircle2,
   Clock,
   Edit,
   Receipt,
   Search,
+  Plus,
   Trash2,
   User,
 } from '../components/icons'
@@ -18,14 +21,35 @@ import { canEditSale } from '../utils/permissions'
 
 export function SalesPage({ role, userId, userProfile, sales = [] }) {
   const isAdmin = role === ROLES.ADMIN
+  const location = useLocation()
   const [searchQuery, setSearchQuery] = useState('')
   const [editingSale, setEditingSale] = useState(null)
+  const [toastMessage, setToastMessage] = useState(null)
+
+  useEffect(() => {
+    if (location.state?.toast) {
+      setToastMessage(location.state.toast)
+      window.history.replaceState({}, document.title)
+      const timer = setTimeout(() => setToastMessage(null), 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [location.state])
 
   // Configure header
   useHeader({
     title: uz.nav.sales,
     subtitle: `${sales.length} ta tranzaksiya`,
     showBack: false,
+    actions: (
+      <Link
+        to="/savdolar/yangi"
+        className="flex items-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+        title="Yangi savdo"
+      >
+        <Plus size={15} />
+        <span>Yangi savdo</span>
+      </Link>
+    ),
   }, [sales.length])
 
   const filteredSales = useMemo(() => {
@@ -78,6 +102,14 @@ export function SalesPage({ role, userId, userProfile, sales = [] }) {
 
   return (
     <div className="space-y-3.5 pb-6">
+      {/* Success Notification Alert */}
+      {toastMessage && (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-50 p-3.5 text-xs font-semibold text-emerald-900 animate-in fade-in duration-200">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* Search Input */}
       <div className="relative">
         <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
