@@ -282,16 +282,28 @@ export async function createSale({
   const todayStr = getTodayDateString();
 
   return await runTransaction(db, async (transaction) => {
-    // 1. Fetch barber doc
+    // -------------------------------------------------------------
+    // 1. ALL READS FIRST (Firestore rule: All reads before any write)
+    // -------------------------------------------------------------
     const barberRef = doc(db, COLLECTIONS.BARBERS, barberId);
     const barberDoc = await transaction.get(barberRef);
     if (!barberDoc.exists()) throw new Error("Sartarosh topilmadi");
 
+    let reportRef = null;
+    let reportDoc = null;
+    if (staffId) {
+      const reportId = `${staffId}_${todayStr}`;
+      reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+      reportDoc = await transaction.get(reportRef);
+    }
+
+    // -------------------------------------------------------------
+    // 2. IN-MEMORY CALCULATIONS
+    // -------------------------------------------------------------
     const bData = barberDoc.data();
     const contract = contractType || bData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
     const price = Number(unitPrice) || Number(bData.pricePerTowel) || 3000;
 
-    // Calculate charge
     let chargedAmount = 0;
     if (contract === CONTRACT_TYPES.PAY_FOR_TAKEN) {
       chargedAmount = qty * price;
@@ -300,15 +312,12 @@ export async function createSale({
     }
     const totalPrice = chargedAmount;
 
-    // Current balances
     const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
     const currentDebt = Number(bData.debt) || 0;
     const currentOverpaid = Number(bData.overpaid) || 0;
 
-    // Update towelsCount
     const newTowelsCount = Math.max(0, currentTowels + qty - returnedQty);
 
-    // Update debt & overpaid
     const netBalance = (currentDebt - currentOverpaid) + chargedAmount - totalCredit;
     let newDebt = 0;
     let newOverpaid = 0;
@@ -320,7 +329,10 @@ export async function createSale({
       newOverpaid = Math.abs(netBalance);
     }
 
-    // Save to barber
+    // -------------------------------------------------------------
+    // 3. ALL WRITES AFTER READS
+    // -------------------------------------------------------------
+    // 3A. Update barber doc
     transaction.update(barberRef, {
       towelsCount: newTowelsCount,
       debt: newDebt,
@@ -328,7 +340,7 @@ export async function createSale({
       updatedAt: serverTimestamp(),
     });
 
-    // 2. Add Sale Document (clean schema)
+    // 3B. Create sale document
     const salesCol = collection(db, COLLECTIONS.SALES);
     const saleDocRef = doc(salesCol);
 
@@ -353,12 +365,8 @@ export async function createSale({
       updatedAt: serverTimestamp(),
     });
 
-    // 3. Update Daily Report for driver
-    if (staffId) {
-      const reportId = `${staffId}_${todayStr}`;
-      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
-      const reportDoc = await transaction.get(reportRef);
-
+    // 3C. Update or set Daily Report
+    if (reportRef && reportDoc) {
       if (reportDoc.exists()) {
         const rep = reportDoc.data();
         const totalDelivered = (Number(rep.totalDelivered) || 0) + qty;
@@ -413,11 +421,33 @@ export async function updateSale(
   const newReturnedQty = Number(returnedTowels) || 0;
 
   return await runTransaction(db, async (transaction) => {
+    // -------------------------------------------------------------
+    // 1. ALL READS FIRST
+    // -------------------------------------------------------------
     const saleRef = doc(db, COLLECTIONS.SALES, saleId);
     const saleDoc = await transaction.get(saleRef);
     if (!saleDoc.exists()) throw new Error("Sotuv topilmadi");
 
     const oldData = saleDoc.data();
+
+    let barberRef = null;
+    let barberDoc = null;
+    if (oldData.barberId) {
+      barberRef = doc(db, COLLECTIONS.BARBERS, oldData.barberId);
+      barberDoc = await transaction.get(barberRef);
+    }
+
+    let reportRef = null;
+    let reportDoc = null;
+    if (oldData.staffId && oldData.date) {
+      const reportId = `${oldData.staffId}_${oldData.date}`;
+      reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+      reportDoc = await transaction.get(reportRef);
+    }
+
+    // -------------------------------------------------------------
+    // 2. IN-MEMORY CALCULATIONS
+    // -------------------------------------------------------------
     const price = Number(oldData.unitPrice) || 3000;
     const contract = oldData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
 
@@ -443,39 +473,37 @@ export async function updateSale(
     const newCredit = newCash + newCard + newDisc;
     const balanceDiff = (newCharge - oldCharge) - (newCredit - oldCredit);
 
-    // Update Barber
-    if (oldData.barberId) {
-      const barberRef = doc(db, COLLECTIONS.BARBERS, oldData.barberId);
-      const barberDoc = await transaction.get(barberRef);
+    // -------------------------------------------------------------
+    // 3. ALL WRITES AFTER READS
+    // -------------------------------------------------------------
+    // 3A. Update Barber
+    if (barberRef && barberDoc && barberDoc.exists()) {
+      const bData = barberDoc.data();
+      const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
+      const currentDebt = Number(bData.debt) || 0;
+      const currentOverpaid = Number(bData.overpaid) || 0;
 
-      if (barberDoc.exists()) {
-        const bData = barberDoc.data();
-        const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
-        const currentDebt = Number(bData.debt) || 0;
-        const currentOverpaid = Number(bData.overpaid) || 0;
-
-        const updatedTowelsCount = Math.max(0, currentTowels + towelDeltaDiff);
-        const netBalance = (currentDebt - currentOverpaid) + balanceDiff;
-        let newDebt = 0;
-        let newOverpaid = 0;
-        if (netBalance > 0) {
-          newDebt = netBalance;
-          newOverpaid = 0;
-        } else if (netBalance < 0) {
-          newDebt = 0;
-          newOverpaid = Math.abs(netBalance);
-        }
-
-        transaction.update(barberRef, {
-          towelsCount: updatedTowelsCount,
-          debt: newDebt,
-          overpaid: newOverpaid,
-          updatedAt: serverTimestamp(),
-        });
+      const updatedTowelsCount = Math.max(0, currentTowels + towelDeltaDiff);
+      const netBalance = (currentDebt - currentOverpaid) + balanceDiff;
+      let newDebt = 0;
+      let newOverpaid = 0;
+      if (netBalance > 0) {
+        newDebt = netBalance;
+        newOverpaid = 0;
+      } else if (netBalance < 0) {
+        newDebt = 0;
+        newOverpaid = Math.abs(netBalance);
       }
+
+      transaction.update(barberRef, {
+        towelsCount: updatedTowelsCount,
+        debt: newDebt,
+        overpaid: newOverpaid,
+        updatedAt: serverTimestamp(),
+      });
     }
 
-    // Update Sale Doc
+    // 3B. Update Sale Doc
     const saleUpdates = {
       quantityDelivered: newQty,
       returnedTowels: newReturnedQty,
@@ -488,49 +516,65 @@ export async function updateSale(
     if (note !== undefined) saleUpdates.note = note.trim();
     transaction.update(saleRef, saleUpdates);
 
-    // Update Daily Report if applicable
-    if (oldData.staffId && oldData.date) {
-      const reportId = `${oldData.staffId}_${oldData.date}`;
-      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
-      const reportDoc = await transaction.get(reportRef);
+    // 3C. Update Daily Report if applicable
+    if (reportRef && reportDoc && reportDoc.exists()) {
+      const rep = reportDoc.data();
+      const deliveredDiff = newQty - oldQty;
+      const returnedDiff = newReturnedQty - oldReturnedQty;
+      const cashDiff = newCash - oldCash;
+      const cardDiff = newCard - oldCard;
+      const discDiff = newDisc - oldDisc;
+      const totalPaidDiff = (newCash + newCard) - (oldCash + oldCard);
 
-      if (reportDoc.exists()) {
-        const rep = reportDoc.data();
-        const deliveredDiff = newQty - oldQty;
-        const returnedDiff = newReturnedQty - oldReturnedQty;
-        const cashDiff = newCash - oldCash;
-        const cardDiff = newCard - oldCard;
-        const discDiff = newDisc - oldDisc;
-        const totalPaidDiff = (newCash + newCard) - (oldCash + oldCard);
+      const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) + deliveredDiff);
+      const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) + returnedDiff);
+      const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
+      const unsold = Number(rep.unsoldTowelsReturned) || 0;
+      const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
 
-        const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) + deliveredDiff);
-        const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) + returnedDiff);
-        const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
-        const unsold = Number(rep.unsoldTowelsReturned) || 0;
-        const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
-
-        transaction.update(reportRef, {
-          totalDelivered,
-          totalReturned,
-          cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) + cashDiff),
-          cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) + cardDiff),
-          discount: Math.max(0, (Number(rep.discount) || 0) + discDiff),
-          totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) + totalPaidDiff),
-          currentStock,
-          updatedAt: serverTimestamp(),
-        });
-      }
+      transaction.update(reportRef, {
+        totalDelivered,
+        totalReturned,
+        cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) + cashDiff),
+        cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) + cardDiff),
+        discount: Math.max(0, (Number(rep.discount) || 0) + discDiff),
+        totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) + totalPaidDiff),
+        currentStock,
+        updatedAt: serverTimestamp(),
+      });
     }
   });
 }
 
 export async function deleteSale(saleId) {
   return await runTransaction(db, async (transaction) => {
+    // -------------------------------------------------------------
+    // 1. ALL READS FIRST
+    // -------------------------------------------------------------
     const saleRef = doc(db, COLLECTIONS.SALES, saleId);
     const saleDoc = await transaction.get(saleRef);
     if (!saleDoc.exists()) return;
 
     const data = saleDoc.data();
+
+    let barberRef = null;
+    let barberDoc = null;
+    if (data.barberId) {
+      barberRef = doc(db, COLLECTIONS.BARBERS, data.barberId);
+      barberDoc = await transaction.get(barberRef);
+    }
+
+    let reportRef = null;
+    let reportDoc = null;
+    if (data.staffId && data.date) {
+      const reportId = `${data.staffId}_${data.date}`;
+      reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
+      reportDoc = await transaction.get(reportRef);
+    }
+
+    // -------------------------------------------------------------
+    // 2. IN-MEMORY CALCULATIONS & WRITES
+    // -------------------------------------------------------------
     const qty = Number(data.quantityDelivered) || 0;
     const returnedQty = Number(data.returnedTowels) || 0;
     const price = Number(data.unitPrice) || 3000;
@@ -539,69 +583,61 @@ export async function deleteSale(saleId) {
     const card = Number(data.cardAmount) || 0;
     const disc = Number(data.discount) || 0;
 
-    // Revert barber
-    if (data.barberId) {
-      const barberRef = doc(db, COLLECTIONS.BARBERS, data.barberId);
-      const barberDoc = await transaction.get(barberRef);
-      if (barberDoc.exists()) {
-        const bData = barberDoc.data();
-        const currentTowels = Number(bData.towelsCount ?? 0);
-        const currentDebt = Number(bData.debt) || 0;
-        const currentOverpaid = Number(bData.overpaid) || 0;
+    // 2A. Revert barber
+    if (barberRef && barberDoc && barberDoc.exists()) {
+      const bData = barberDoc.data();
+      const currentTowels = Number(bData.towelsCount ?? 0);
+      const currentDebt = Number(bData.debt) || 0;
+      const currentOverpaid = Number(bData.overpaid) || 0;
 
-        const revertedTowels = Math.max(0, currentTowels - (qty - returnedQty));
+      const revertedTowels = Math.max(0, currentTowels - (qty - returnedQty));
 
-        const charge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? qty * price : returnedQty * price;
-        const credit = cash + card + disc;
-        const balanceDelta = -(charge - credit);
+      const charge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? qty * price : returnedQty * price;
+      const credit = cash + card + disc;
+      const balanceDelta = -(charge - credit);
 
-        const netBalance = (currentDebt - currentOverpaid) + balanceDelta;
-        let newDebt = 0;
-        let newOverpaid = 0;
-        if (netBalance > 0) {
-          newDebt = netBalance;
-          newOverpaid = 0;
-        } else if (netBalance < 0) {
-          newDebt = 0;
-          newOverpaid = Math.abs(netBalance);
-        }
-
-        transaction.update(barberRef, {
-          towelsCount: revertedTowels,
-          debt: newDebt,
-          overpaid: newOverpaid,
-          updatedAt: serverTimestamp(),
-        });
+      const netBalance = (currentDebt - currentOverpaid) + balanceDelta;
+      let newDebt = 0;
+      let newOverpaid = 0;
+      if (netBalance > 0) {
+        newDebt = netBalance;
+        newOverpaid = 0;
+      } else if (netBalance < 0) {
+        newDebt = 0;
+        newOverpaid = Math.abs(netBalance);
       }
+
+      transaction.update(barberRef, {
+        towelsCount: revertedTowels,
+        debt: newDebt,
+        overpaid: newOverpaid,
+        updatedAt: serverTimestamp(),
+      });
     }
 
-    // Revert daily report
-    if (data.staffId && data.date) {
-      const reportId = `${data.staffId}_${data.date}`;
-      const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
-      const reportDoc = await transaction.get(reportRef);
-      if (reportDoc.exists()) {
-        const rep = reportDoc.data();
-        const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) - qty);
-        const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) - returnedQty);
-        const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
-        const unsold = Number(rep.unsoldTowelsReturned) || 0;
-        const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
+    // 2B. Revert daily report
+    if (reportRef && reportDoc && reportDoc.exists()) {
+      const rep = reportDoc.data();
+      const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) - qty);
+      const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) - returnedQty);
+      const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
+      const unsold = Number(rep.unsoldTowelsReturned) || 0;
+      const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
 
-        transaction.update(reportRef, {
-          totalDelivered,
-          totalReturned,
-          cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) - cash),
-          cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) - card),
-          discount: Math.max(0, (Number(rep.discount) || 0) - disc),
-          totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) - (cash + card)),
-          salesCount: Math.max(0, (Number(rep.salesCount) || 1) - 1),
-          currentStock,
-          updatedAt: serverTimestamp(),
-        });
-      }
+      transaction.update(reportRef, {
+        totalDelivered,
+        totalReturned,
+        cashAmount: Math.max(0, (Number(rep.cashAmount) || 0) - cash),
+        cardAmount: Math.max(0, (Number(rep.cardAmount) || 0) - card),
+        discount: Math.max(0, (Number(rep.discount) || 0) - disc),
+        totalPaid: Math.max(0, (Number(rep.totalPaid) || 0) - (cash + card)),
+        salesCount: Math.max(0, (Number(rep.salesCount) || 1) - 1),
+        currentStock,
+        updatedAt: serverTimestamp(),
+      });
     }
 
+    // 2C. Delete sale doc
     transaction.delete(saleRef);
   });
 }
