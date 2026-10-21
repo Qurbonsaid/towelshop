@@ -1,8 +1,10 @@
 import React, { useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AlertCircle, DollarSign, Package, TrendingUp } from './icons'
 import { uz } from '../i18n/uz'
 
 export function AdminStatsCards({ sales = [], barbers = [] }) {
+  const navigate = useNavigate();
   const stats = useMemo(() => {
     // oxlint-disable-next-line react/purity
     const now = new Date()
@@ -79,11 +81,28 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
     <div className="space-y-3">
       {/* 3 Main Sales Volumes */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        {/* Daily */}
-        <div className="flex flex-col justify-between rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 text-white shadow-sm">
+        {/* Daily (Clickable -> Opens Daily Stats & Logs Page) */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/statistika/kunlik')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/statistika/kunlik');
+            }
+          }}
+          className="group relative flex flex-col justify-between rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 text-white shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-98 transition-all"
+          title="Bugungi hisobot va qarzlar jurnalini ko'rish"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-emerald-100">{uz.admin.stats.dailyTitle}</span>
-            <div className="rounded-lg bg-emerald-400/30 p-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-emerald-100">{uz.admin.stats.dailyTitle}</span>
+              <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white group-hover:bg-white/30 transition-all">
+                Batafsil →
+              </span>
+            </div>
+            <div className="rounded-lg bg-emerald-400/30 p-1.5 group-hover:bg-emerald-400/50 transition-all">
               <TrendingUp size={16} />
             </div>
           </div>

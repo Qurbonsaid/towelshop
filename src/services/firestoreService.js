@@ -409,8 +409,95 @@ export async function createSale({
       }
     }
 
-    return saleDocRef.id;
+    // 3D. Write to LOGS collection (records debt payments and new debts incurred)
+    const logsCol = collection(db, COLLECTIONS.LOGS);
+    const logDocRef = doc(logsCol);
+
+    // Only genuine debt payment if prior debt > 0
+    const isDebtPayment = currentDebt > 0 && totalCredit > 0;
+    const debtPaidAmount = isDebtPayment ? Math.min(currentDebt, totalCredit) : 0;
+
+    // Only genuine new debt if debt actually increased
+    const isNewDebt = newDebt > currentDebt;
+    const newDebtAmount = isNewDebt ? (newDebt - currentDebt) : 0;
+
+    let logType = "CASH_SALE";
+    if (isDebtPayment && isNewDebt) {
+      logType = "PAYMENT_AND_DEBT";
+    } else if (isDebtPayment) {
+      logType = "DEBT_PAYMENT";
+    } else if (isNewDebt) {
+      logType = "NEW_DEBT";
+    }
+
+    transaction.set(logDocRef, {
+      type: logType,
+      saleId: saleDocRef.id,
+      barberId,
+      barberName: barberName || bData.name || "",
+      barbershopId: barbershopId || bData.barbershopId || "",
+      barbershopName: barbershopName || "",
+      staffId: staffId || "unknown",
+      staffName: staffName || "Xodim",
+
+      // Cash & Click money received
+      cashAmount: cash,
+      cardAmount: card,
+      discount: disc,
+      totalPaid: totalPaid,
+      totalCredit: totalCredit,
+      chargedAmount: chargedAmount,
+
+      // Debt tracking
+      oldDebt: currentDebt,
+      newDebt: newDebt,
+      debtDifference: newDebt - currentDebt,
+      isDebtPayment,
+      debtPaidAmount,
+      isNewDebt,
+      newDebtAmount,
+
+      // Overpayment tracking
+      oldOverpaid: currentOverpaid,
+      newOverpaid: newOverpaid,
+
+      // Towels details
+      quantityDelivered: qty,
+      returnedTowels: returnedQty,
+      unitPrice: price,
+      contractType: contract,
+
+      note: note.trim(),
+      date: todayStr,
+      createdAt: serverTimestamp(),
+    });
+
+    return {
+      saleId: saleDocRef.id,
+      logId: logDocRef.id,
+      isDebtPayment,
+      debtPaidAmount,
+      isNewDebt,
+      newDebtAmount,
+    };
   });
+
+  // 4. Check 2-hour matching cancellation rule:
+  // If barber had a debt within 2 hours and now pays the same amount,
+  // delete the debt log from /logs and do not keep the payment in debt logs!
+  if (result.isDebtPayment && result.debtPaidAmount > 0) {
+    try {
+      await cancelTwoHourMatchedLogs({
+        barberId,
+        debtPaidAmount: result.debtPaidAmount,
+        paymentLogId: result.logId,
+      });
+    } catch (err) {
+      console.warn("2-hour matching cancellation error:", err);
+    }
+  }
+
+  return result.saleId;
 }
 
 export async function updateSale(
@@ -544,6 +631,24 @@ export async function updateSale(
       });
     }
   });
+
+  // After transaction, sync associated logs
+  try {
+    const newCredit = (Number(cashAmount) || 0) + (Number(cardAmount) || 0) + (Number(discount) || 0);
+    const newQty = Number(quantityDelivered) || 0;
+    // If sale is fully paid, remove any debt log for this sale
+    const q = query(collection(db, COLLECTIONS.LOGS), where("saleId", "==", saleId));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      const data = d.data();
+      const charged = Number(data.chargedAmount) || (newQty * (Number(data.unitPrice) || 3000));
+      if (newCredit >= charged) {
+        await deleteDoc(d.ref);
+      }
+    }
+  } catch (err) {
+    console.warn("updateSale logs sync error:", err);
+  }
 }
 
 export async function deleteSale(saleId) {
@@ -640,6 +745,159 @@ export async function deleteSale(saleId) {
     // 2C. Delete sale doc
     transaction.delete(saleRef);
   });
+
+  // After transaction, clean up associated logs
+  try {
+    const q = query(collection(db, COLLECTIONS.LOGS), where("saleId", "==", saleId));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+    }
+  } catch (err) {
+    console.warn("deleteSale logs cleanup error:", err);
+  }
+}
+
+/**
+ * 2-hour matching rule:
+ * If a barber got into debt and then paid the debt with the same amount within 2 hours:
+ * Delete the debt log from /logs and do not keep the debt payment in /logs!
+ */
+export async function cancelTwoHourMatchedLogs({ barberId, debtPaidAmount, paymentLogId }) {
+  if (!barberId || !debtPaidAmount) return;
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  const now = Date.now();
+
+  try {
+    // Query without orderBy to avoid needing a Firestore composite index
+    const q = query(
+      collection(db, COLLECTIONS.LOGS),
+      where("barberId", "==", barberId)
+    );
+    const snap = await getDocs(q);
+
+    for (const docSnap of snap.docs) {
+      if (docSnap.id === paymentLogId) continue;
+      const data = docSnap.data();
+
+      // Check if this log recorded a debt
+      const isDebt = data.isNewDebt || data.type === "NEW_DEBT" || Number(data.newDebtAmount) > 0;
+      if (!isDebt) continue;
+
+      const docTime = data.createdAt?.toMillis
+        ? data.createdAt.toMillis()
+        : data.createdAt?.toDate
+        ? data.createdAt.toDate().getTime()
+        : data.createdAt
+        ? new Date(data.createdAt).getTime()
+        : 0;
+
+      if (docTime && Math.abs(now - docTime) <= TWO_HOURS_MS) {
+        const debtAmt = Number(data.newDebtAmount) || Number(data.debtDifference) || 0;
+        // Same amount (allow within 100 so'm)
+        if (Math.abs(debtAmt - debtPaidAmount) < 100) {
+          // 1. Delete debt log from /logs
+          await deleteDoc(docSnap.ref);
+          // 2. Delete payment log from /logs
+          if (paymentLogId) {
+            await deleteDoc(doc(db, COLLECTIONS.LOGS, paymentLogId));
+          }
+          break;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("cancelTwoHourMatchedLogs error:", err);
+  }
+}
+
+/**
+ * Cleanup any past 2-hour matched debt/payment pairs currently stored in Firestore /logs
+ * Also cleans up false 0 -> 0 so'm debt payment records
+ */
+export async function cleanupAllTwoHourMatchedLogs() {
+  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+  try {
+    const snap = await getDocs(collection(db, COLLECTIONS.LOGS));
+    const docs = snap.docs.map((d) => ({ id: d.id, ref: d.ref, ...d.data() }));
+
+    const getTime = (item) => {
+      if (item.createdAt?.toMillis) return item.createdAt.toMillis();
+      if (item.createdAt?.toDate) return item.createdAt.toDate().getTime();
+      if (item.createdAt) return new Date(item.createdAt).getTime();
+      return 0;
+    };
+
+    const toDeleteIds = new Set();
+
+    // 1. Remove bogus logs where oldDebt === 0 && newDebt === 0 (pure cash sales mislabeled as debt payments)
+    docs.forEach((item) => {
+      const oldD = Number(item.oldDebt) || 0;
+      const newD = Number(item.newDebt) || 0;
+      const newDebtAmt = Number(item.newDebtAmount) || 0;
+      if (oldD === 0 && newD === 0 && newDebtAmt === 0 && item.isDebtPayment) {
+        toDeleteIds.add(item.id);
+      }
+    });
+
+    // 2. Remove 2-hour matched debt and payment pairs
+    docs.forEach((itemA) => {
+      if (toDeleteIds.has(itemA.id)) return;
+      const isDebtA = itemA.isNewDebt || itemA.type === "NEW_DEBT" || Number(itemA.newDebtAmount) > 0;
+      if (!isDebtA) return;
+
+      const amtA = Number(itemA.newDebtAmount) || Number(itemA.debtDifference) || 0;
+      const timeA = getTime(itemA);
+
+      const matchB = docs.find((itemB) => {
+        if (itemB.id === itemA.id || toDeleteIds.has(itemB.id)) return false;
+        if (itemB.barberId !== itemA.barberId) return false;
+
+        const isPayB = itemB.isDebtPayment || itemB.type === "DEBT_PAYMENT" || Number(itemB.debtPaidAmount) > 0;
+        if (!isPayB) return false;
+
+        const amtB = Number(itemB.debtPaidAmount) || Number(itemB.totalPaid) || 0;
+        if (Math.abs(amtA - amtB) > 100) return false;
+
+        const timeB = getTime(itemB);
+        if (Math.abs(timeA - timeB) > TWO_HOURS_MS) return false;
+
+        return true;
+      });
+
+      if (matchB) {
+        toDeleteIds.add(itemA.id);
+        toDeleteIds.add(matchB.id);
+      }
+    });
+
+    for (const docId of toDeleteIds) {
+      await deleteDoc(doc(db, COLLECTIONS.LOGS, docId));
+    }
+
+    return toDeleteIds.size;
+  } catch (err) {
+    console.warn("cleanupAllTwoHourMatchedLogs error:", err);
+    return 0;
+  }
+}
+
+export function subscribeLogs(callback) {
+  const q = query(
+    collection(db, COLLECTIONS.LOGS),
+    orderBy("createdAt", "desc")
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items = snapshot.docs.map((docItem) => ({
+        id: docItem.id,
+        ...docItem.data(),
+      }));
+      callback(items);
+    },
+    (err) => console.error("Logs subscribe error:", err)
+  );
 }
 
 export function subscribeSales(callback) {

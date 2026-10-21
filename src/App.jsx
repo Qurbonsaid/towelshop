@@ -12,6 +12,7 @@ import { uz } from "./i18n/uz";
 import { BarberDetailsPage } from "./pages/BarberDetailsPage";
 import { BarbershopDetailsPage } from "./pages/BarbershopDetailsPage";
 import { BarbershopsPage } from "./pages/BarbershopsPage";
+import { DailyStatsPage } from "./pages/DailyStatsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MapView } from "./pages/MapView";
 import { NewSalePage } from "./pages/NewSalePage";
@@ -25,6 +26,7 @@ import {
   subscribeBarbers,
   subscribeBarbershops,
   subscribeDailyReports,
+  subscribeLogs,
   subscribeReturns,
   subscribeSales,
   subscribeUsers,
@@ -52,6 +54,7 @@ function App() {
   const [sales, setSales] = useState([]);
   const [returns, setReturns] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
@@ -111,6 +114,7 @@ function App() {
     const unsubSales = subscribeSales(setSales);
     const unsubReturns = subscribeReturns(setReturns);
     const unsubDailyReports = subscribeDailyReports(setDailyReports);
+    const unsubLogs = subscribeLogs(setLogs);
 
     let unsubUsers = () => {};
     if (role === ROLES.ADMIN) {
@@ -123,6 +127,7 @@ function App() {
       unsubSales();
       unsubReturns();
       unsubDailyReports();
+      unsubLogs();
       unsubUsers();
     };
   }, [user, role]);
@@ -310,6 +315,44 @@ function App() {
                   barbers={barbers}
                   returns={returns}
                   dailyReports={dailyReports}
+                />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/statistika/kunlik"
+            element={
+              <ProtectedRoute
+                allowedRoles={[ROLES.ADMIN]}
+                role={role}
+              >
+                <DailyStatsPage
+                  role={role}
+                  userId={user.uid}
+                  userProfile={userProfile}
+                  logs={logs}
+                  sales={sales}
+                  barbers={barbers}
+                  barbershops={barbershops}
+                />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/logs"
+            element={
+              <ProtectedRoute
+                allowedRoles={[ROLES.ADMIN]}
+                role={role}
+              >
+                <DailyStatsPage
+                  role={role}
+                  userId={user.uid}
+                  userProfile={userProfile}
+                  logs={logs}
+                  sales={sales}
+                  barbers={barbers}
+                  barbershops={barbershops}
                 />
               </ProtectedRoute>
             }
