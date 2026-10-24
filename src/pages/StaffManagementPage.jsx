@@ -199,8 +199,7 @@ export function StaffManagementPage({
             const staffId = staff.uid || staff.id;
             const isStaffAdmin = staff.role === ROLES.ADMIN;
             const isStaffManager = staff.role === ROLES.MANAGER;
-            const isStaffDelivery =
-              staff.role === ROLES.DELIVERY || staff.role === ROLES.STAFF;
+            const isStaffDelivery = staff.role === ROLES.DELIVERY;
             const currentPeriod = periodMap[staffId] || "today";
 
             // Today's Sales & Transactions

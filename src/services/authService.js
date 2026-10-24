@@ -36,7 +36,7 @@ export async function loginWithPhone(phone, password) {
   }
 
   const profile = userDoc.data();
-  const role = profile.role || ROLES.STAFF;
+  const role = profile.role;
 
   return { user: credential.user, role, profile };
 }
@@ -50,7 +50,7 @@ export async function createStaffAccount({
   name,
   phone,
   password,
-  role = ROLES.STAFF,
+  role = ROLES.DELIVERY,
 }) {
   const cleanPhone = normalizePhone(phone);
   const email = mapPhoneToEmail(cleanPhone);

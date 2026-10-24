@@ -335,7 +335,7 @@ function App() {
             path="/statistika"
             element={
               <ProtectedRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.DELIVERY, ROLES.STAFF]}
+                allowedRoles={[ROLES.ADMIN, ROLES.DELIVERY]}
                 role={role}
               >
                 <StatsPage
