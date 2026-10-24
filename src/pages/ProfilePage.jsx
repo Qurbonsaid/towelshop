@@ -1,74 +1,89 @@
-import React, { useState } from 'react'
-import { AlertCircle, CheckCircle2, Lock, LogOut, Shield, User } from '../components/icons'
+import React, { useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Lock,
+  LogOut,
+  Shield,
+  User,
+} from "../components/icons";
 
-import { ROLES } from '../constants/roles'
-import { useHeader } from '../context/HeaderContext'
-import { uz } from '../i18n/uz'
-import { updateUserProfile } from '../services/authService'
-import { formatPhoneDisplay, isValidPhone, normalizePhone } from '../utils/auth'
+import { ROLES } from "../constants/roles";
+import { useHeader } from "../context/HeaderContext";
+import { uz } from "../i18n/uz";
+import { updateUserProfile } from "../services/authService";
+import {
+  formatPhoneDisplay,
+  isValidPhone,
+  normalizePhone,
+} from "../utils/auth";
 
 export function ProfilePage({ userProfile, onLogout }) {
-  useHeader({
-    title: uz.profile.title,
-    subtitle: uz.profile.subtitle,
-    showBack: true,
-    backTo: '/sartaroshxonalar',
-  }, [])
+  useHeader(
+    {
+      title: uz.profile.title,
+      subtitle: uz.profile.subtitle,
+      showBack: true,
+      backTo: "/sartaroshxonalar",
+    },
+    [],
+  );
 
-  const isAdmin = userProfile?.role === ROLES.ADMIN
+  const isAdmin = userProfile?.role === ROLES.ADMIN;
 
-  const [name, setName] = useState(userProfile?.name || '')
-  const [phone, setPhone] = useState(userProfile?.phone || '')
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [name, setName] = useState(userProfile?.name || "");
+  const [phone, setPhone] = useState(userProfile?.phone || "");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const handlePhoneChange = (val) => {
     // Only accept numbers up to 9 digits
-    const cleaned = val.replace(/\D/g, '').slice(0, 9)
-    setPhone(cleaned)
-  }
+    const cleaned = val.replace(/\D/g, "").slice(0, 9);
+    setPhone(cleaned);
+  };
 
   const isSensitiveFieldChanged =
-    Boolean(phone && normalizePhone(phone) !== normalizePhone(userProfile?.phone)) ||
-    Boolean(newPassword && newPassword.length > 0)
+    Boolean(
+      phone && normalizePhone(phone) !== normalizePhone(userProfile?.phone),
+    ) || Boolean(newPassword && newPassword.length > 0);
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
+    e.preventDefault();
+    setError("");
+    setSuccess("");
 
     if (!name.trim()) {
-      setError("Ism-familiyani kiritish majburiy!")
-      return
+      setError("Ism-familiyani kiritish majburiy!");
+      return;
     }
 
     if (!isValidPhone(phone)) {
-      setError(uz.profile.invalidPhone)
-      return
+      setError(uz.profile.invalidPhone);
+      return;
     }
 
     if (newPassword) {
       if (newPassword.length < 6) {
-        setError(uz.profile.passwordTooShort)
-        return
+        setError(uz.profile.passwordTooShort);
+        return;
       }
       if (newPassword !== confirmPassword) {
-        setError(uz.profile.passwordMismatch)
-        return
+        setError(uz.profile.passwordMismatch);
+        return;
       }
     }
 
     if (isSensitiveFieldChanged && !currentPassword) {
-      setError(uz.profile.currentPasswordRequired)
-      return
+      setError(uz.profile.currentPasswordRequired);
+      return;
     }
 
-    setSaving(true)
+    setSaving(true);
     try {
       await updateUserProfile({
         name: name.trim(),
@@ -76,19 +91,19 @@ export function ProfilePage({ userProfile, onLogout }) {
         currentPhone: userProfile?.phone,
         currentPassword,
         newPassword,
-      })
+      });
 
-      setSuccess(uz.profile.saveSuccess)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
+      setSuccess(uz.profile.saveSuccess);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
     } catch (err) {
-      console.error('Profile update error:', err)
-      setError(err.message || uz.common.error)
+      console.error("Profile update error:", err);
+      setError(err.message || uz.common.error);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   return (
     <div className="space-y-4 pb-8">
@@ -99,12 +114,22 @@ export function ProfilePage({ userProfile, onLogout }) {
             {isAdmin ? <Shield size={24} /> : <User size={24} />}
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900">{userProfile?.name || 'Foydalanuvchi'}</h2>
+            <h2 className="text-base font-bold text-slate-900">
+              {userProfile?.name || "Foydalanuvchi"}
+            </h2>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                isAdmin ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              }`}>
-                {isAdmin ? uz.roles.admin : uz.roles.staff}
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                  isAdmin
+                    ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                    : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                }`}
+              >
+                {isAdmin
+                  ? uz.roles.admin
+                  : userProfile?.role === ROLES.MANAGER
+                    ? uz.roles.manager
+                    : uz.roles.delivery}
               </span>
               <span className="text-xs text-slate-500 font-mono">
                 +998 {formatPhoneDisplay(userProfile?.phone)}
@@ -188,7 +213,10 @@ export function ProfilePage({ userProfile, onLogout }) {
             {/* Current Password */}
             <div className="space-y-1 mb-3">
               <label className="block text-xs font-semibold text-slate-700">
-                {uz.profile.currentPasswordLabel} {isSensitiveFieldChanged && <span className="text-red-500">*</span>}
+                {uz.profile.currentPasswordLabel}{" "}
+                {isSensitiveFieldChanged && (
+                  <span className="text-red-500">*</span>
+                )}
               </label>
               <input
                 type="password"
@@ -197,8 +225,8 @@ export function ProfilePage({ userProfile, onLogout }) {
                 placeholder={uz.profile.currentPasswordPlaceholder}
                 className={`w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none ${
                   isSensitiveFieldChanged && !currentPassword
-                    ? 'border-amber-400 bg-amber-50/20 focus:border-amber-500 focus:ring-2 focus:ring-amber-200'
-                    : 'border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200'
+                    ? "border-amber-400 bg-amber-50/20 focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+                    : "border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 }`}
               />
               <span className="text-[10px] text-slate-400 block">
@@ -253,8 +281,12 @@ export function ProfilePage({ userProfile, onLogout }) {
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="text-sm font-bold text-slate-800">Tizimdan chiqish</h4>
-            <p className="text-xs text-slate-500">Joriy hisobingizdan xavfsiz chiqish</p>
+            <h4 className="text-sm font-bold text-slate-800">
+              Tizimdan chiqish
+            </h4>
+            <p className="text-xs text-slate-500">
+              Joriy hisobingizdan xavfsiz chiqish
+            </p>
           </div>
           <button
             type="button"
@@ -267,5 +299,5 @@ export function ProfilePage({ userProfile, onLogout }) {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -4,10 +4,9 @@ export const uz = {
     "Sartaroshxonalar uchun professional sochiq yetkazib berish va hisob-kitob tizimi",
 
   roles: {
-    admin: "Administrator",
-    delivery: "Yetkazish (Haydovchi)",
-    manager: "Menejer (Omborchi)",
-    staff: "Yetkazish (Haydovchi)",
+    admin: "Admin",
+    delivery: "Yetkazish",
+    manager: "Menejer",
     barber: "Sartarosh",
   },
 
