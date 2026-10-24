@@ -38,7 +38,7 @@ export function canEditSale({ role, staffId, currentUid }) {
     return true
   }
 
-  if (role === ROLES.STAFF) {
+  if (role === ROLES.STAFF || role === ROLES.DELIVERY) {
     return !staffId || !currentUid || staffId === currentUid
   }
 

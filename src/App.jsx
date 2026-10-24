@@ -14,6 +14,7 @@ import { BarbershopDetailsPage } from "./pages/BarbershopDetailsPage";
 import { BarbershopsPage } from "./pages/BarbershopsPage";
 import { DailyStatsPage } from "./pages/DailyStatsPage";
 import { LoginPage } from "./pages/LoginPage";
+import { ManagerDashboard } from "./pages/ManagerDashboard";
 import { MapView } from "./pages/MapView";
 import { NewSalePage } from "./pages/NewSalePage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -35,7 +36,8 @@ import { resolveDefaultRoute } from "./utils/auth";
 
 function ProtectedRoute({ allowedRoles, role, children }) {
   if (!role || !allowedRoles.includes(role)) {
-    return <Navigate replace to="/sartaroshxonalar" />;
+    const fallback = role === ROLES.MANAGER ? "/ombor" : "/sartaroshxonalar";
+    return <Navigate replace to={fallback} />;
   }
 
   return children;
@@ -82,9 +84,9 @@ function App() {
         if (snapshot.exists()) {
           const data = snapshot.data();
           setUserProfile(data);
-          setRole(data.role || ROLES.STAFF);
+          setRole(data.role || ROLES.DELIVERY);
         } else {
-          setRole(ROLES.STAFF);
+          setRole(ROLES.DELIVERY);
         }
         setLoading(false);
       });
@@ -117,7 +119,7 @@ function App() {
     const unsubLogs = subscribeLogs(setLogs);
 
     let unsubUsers = () => {};
-    if (role === ROLES.ADMIN) {
+    if (role === ROLES.ADMIN || role === ROLES.MANAGER) {
       unsubUsers = subscribeUsers(setUsers);
     }
 
@@ -135,7 +137,7 @@ function App() {
     const result = await loginWithPhone(phone, password);
     setUser(result.user);
     setUserProfile(result.profile);
-    setRole(result.role || ROLES.STAFF);
+    setRole(result.role || ROLES.DELIVERY);
   };
 
   const handleLogout = async () => {
@@ -195,25 +197,33 @@ function App() {
           <Route
             index
             element={
-              <BarbershopsPage
-                role={role}
-                barbershops={barbershops}
-                barbers={barbers}
-                sales={sales}
-                returns={returns}
-              />
+              role === ROLES.MANAGER ? (
+                <Navigate to="/ombor" replace />
+              ) : (
+                <BarbershopsPage
+                  role={role}
+                  barbershops={barbershops}
+                  barbers={barbers}
+                  sales={sales}
+                  returns={returns}
+                />
+              )
             }
           />
           <Route
             path="/sartaroshxonalar"
             element={
-              <BarbershopsPage
-                role={role}
-                barbershops={barbershops}
-                barbers={barbers}
-                sales={sales}
-                returns={returns}
-              />
+              role === ROLES.MANAGER ? (
+                <Navigate to="/ombor" replace />
+              ) : (
+                <BarbershopsPage
+                  role={role}
+                  barbershops={barbershops}
+                  barbers={barbers}
+                  sales={sales}
+                  returns={returns}
+                />
+              )
             }
           />
           <Route
@@ -233,8 +243,6 @@ function App() {
             element={
               <BarberDetailsPage
                 role={role}
-                userId={user.uid}
-                userProfile={userProfile}
                 barbershops={barbershops}
                 barbers={barbers}
                 sales={sales}
@@ -275,13 +283,17 @@ function App() {
           <Route
             path="/savdolar"
             element={
-              <SalesPage
-                role={role}
-                userId={user.uid}
-                userProfile={userProfile}
-                sales={sales}
-                returns={returns}
-              />
+              role === ROLES.MANAGER ? (
+                <Navigate to="/ombor" replace />
+              ) : (
+                <SalesPage
+                  role={role}
+                  userId={user.uid}
+                  userProfile={userProfile}
+                  sales={sales}
+                  returns={returns}
+                />
+              )
             }
           />
           <Route
@@ -299,12 +311,31 @@ function App() {
             }
           />
 
-          {/* 3. Statistics & Driver Daily Report Route */}
+          {/* 3. Warehouse Route for Manager & Admin */}
+          <Route
+            path="/ombor"
+            element={
+              <ProtectedRoute
+                allowedRoles={[ROLES.ADMIN, ROLES.MANAGER]}
+                role={role}
+              >
+                <ManagerDashboard
+                  role={role}
+                  userId={user.uid}
+                  userProfile={userProfile}
+                  users={users}
+                  dailyReports={dailyReports}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* 4. Statistics & Driver Daily Report Route */}
           <Route
             path="/statistika"
             element={
               <ProtectedRoute
-                allowedRoles={[ROLES.ADMIN, ROLES.STAFF]}
+                allowedRoles={[ROLES.ADMIN, ROLES.DELIVERY, ROLES.STAFF]}
                 role={role}
               >
                 <StatsPage
@@ -322,10 +353,7 @@ function App() {
           <Route
             path="/statistika/kunlik"
             element={
-              <ProtectedRoute
-                allowedRoles={[ROLES.ADMIN]}
-                role={role}
-              >
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN]} role={role}>
                 <DailyStatsPage
                   role={role}
                   userId={user.uid}
@@ -341,10 +369,7 @@ function App() {
           <Route
             path="/logs"
             element={
-              <ProtectedRoute
-                allowedRoles={[ROLES.ADMIN]}
-                role={role}
-              >
+              <ProtectedRoute allowedRoles={[ROLES.ADMIN]} role={role}>
                 <DailyStatsPage
                   role={role}
                   userId={user.uid}

@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
-  ArrowLeft,
   Building2,
   Calendar,
   CheckCircle2,
@@ -10,11 +9,8 @@ import {
   ChevronRight,
   Clock,
   DollarSign,
-  Package,
   Receipt,
-  Scissors,
   Search,
-  TrendingUp,
   User,
 } from "../components/icons";
 import { useHeader } from "../context/HeaderContext";
@@ -28,10 +24,8 @@ export function DailyStatsPage({
   logs = [],
   sales = [],
   barbers = [],
-  barbershops = [],
+  _barbershops = [],
 }) {
-  const navigate = useNavigate();
-
   // On mount, cleanup matched 2-hour logs and any 0->0 false debt logs from Firestore
   useEffect(() => {
     cleanupAllTwoHourMatchedLogs();
@@ -61,18 +55,18 @@ export function DailyStatsPage({
   );
 
   // Today and yesterday strings
-  const todayStr = useMemo(() => getTodayDateString(), []);
-  const yesterdayStr = useMemo(() => {
+  const [todayStr] = useState(() => getTodayDateString());
+  const [yesterdayStr] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
     return getTodayDateString(d);
-  }, []);
+  });
 
-  const weekAgoStr = useMemo(() => {
+  const [weekAgoStr] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
     return getTodayDateString(d);
-  }, []);
+  });
 
   // Filter sales by selected date range for accurate total cash/card collection
   const filteredSales = useMemo(() => {

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock,
   DollarSign,
+  Package,
   Plus,
   Shield,
   Trash2,
@@ -21,7 +22,6 @@ import {
   closeDailyReport,
   deleteUserDoc,
   getTodayDateString,
-  updateUserRole,
 } from "../services/firestoreService";
 import { formatPhoneDisplay } from "../utils/auth";
 
@@ -39,7 +39,7 @@ export function StaffManagementPage({
   useHeader(
     {
       title: uz.nav.staff,
-      subtitle: `${users.length} ta xodim va haydovchi`,
+      subtitle: `${users.length} ta xodim va foydalanuvchi`,
       showBack: false,
     },
     [users.length],
@@ -58,26 +58,6 @@ export function StaffManagementPage({
       try {
         await deleteUserDoc(uid);
         setSuccessMsg("Xodim muvaffaqiyatli o'chirildi!");
-        setTimeout(() => setSuccessMsg(""), 4000);
-      } catch (err) {
-        console.error(err);
-        setActionError(uz.common.error);
-        setTimeout(() => setActionError(""), 4000);
-      }
-    }
-  };
-
-  const handleRoleToggle = async (uid, currentRole) => {
-    const newRole = currentRole === ROLES.ADMIN ? ROLES.STAFF : ROLES.ADMIN;
-    const confirmMsg =
-      newRole === ROLES.ADMIN
-        ? "Ushbu xodimga Administrator huquqini bermoqchimisiz?"
-        : "Ushbu foydalanuvchini Xodim (Haydovchi) roliga o'tkazmoqchimisiz?";
-
-    if (window.confirm(confirmMsg)) {
-      try {
-        await updateUserRole(uid, newRole);
-        setSuccessMsg("Foydalanuvchi roli yangilandi!");
         setTimeout(() => setSuccessMsg(""), 4000);
       } catch (err) {
         console.error(err);
@@ -147,6 +127,9 @@ export function StaffManagementPage({
           users.map((staff) => {
             const staffId = staff.uid || staff.id;
             const isStaffAdmin = staff.role === ROLES.ADMIN;
+            const isStaffManager = staff.role === ROLES.MANAGER;
+            const isStaffDelivery =
+              staff.role === ROLES.DELIVERY || staff.role === ROLES.STAFF;
             const currentPeriod = periodMap[staffId] || "today";
 
             // Today's Sales & Transactions
@@ -235,10 +218,18 @@ export function StaffManagementPage({
                       className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-bold ${
                         isStaffAdmin
                           ? "bg-indigo-100 text-indigo-700"
-                          : "bg-emerald-100 text-emerald-700"
+                          : isStaffManager
+                            ? "bg-purple-100 text-purple-700"
+                            : "bg-emerald-100 text-emerald-700"
                       }`}
                     >
-                      {isStaffAdmin ? <Shield size={20} /> : <User size={20} />}
+                      {isStaffAdmin ? (
+                        <Shield size={20} />
+                      ) : isStaffManager ? (
+                        <Package size={20} />
+                      ) : (
+                        <User size={20} />
+                      )}
                     </div>
 
                     <div>
@@ -246,15 +237,21 @@ export function StaffManagementPage({
                         <h4 className="text-sm font-extrabold text-slate-900">
                           {staff.name || "Xodim"}
                         </h4>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            isStaffAdmin
-                              ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          }`}
-                        >
-                          {isStaffAdmin ? "Administrator" : "Haydovchi / Xodim"}
-                        </span>
+                        {isStaffAdmin && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            Administrator
+                          </span>
+                        )}
+                        {isStaffManager && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            Menejer (Omborchi)
+                          </span>
+                        )}
+                        {isStaffDelivery && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Yetkazuvchi
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs font-mono text-slate-500 mt-0.5">
                         +998 {formatPhoneDisplay(staff.phone)}
@@ -263,14 +260,6 @@ export function StaffManagementPage({
                   </div>
 
                   <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handleRoleToggle(staffId, staff.role)}
-                      className="rounded-lg p-1.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                      title="Rolni o'zgartirish"
-                    >
-                      <Shield size={16} />
-                    </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteUser(staffId)}
@@ -282,154 +271,170 @@ export function StaffManagementPage({
                   </div>
                 </div>
 
-                {/* Period Selector Tabs: Bugun vs Barcha davr */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
-                    Haydovchi Balansi & Statistika
-                  </span>
-                  <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => togglePeriod(staffId)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
-                        currentPeriod === "today"
-                          ? "bg-white text-slate-900 font-bold shadow-xs"
-                          : "text-slate-500 hover:text-slate-900"
-                      }`}
-                    >
-                      Bugun
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => togglePeriod(staffId)}
-                      className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
-                        currentPeriod === "all"
-                          ? "bg-white text-slate-900 font-bold shadow-xs"
-                          : "text-slate-500 hover:text-slate-900"
-                      }`}
-                    >
-                      Barchasi
-                    </button>
+                {isStaffManager ? (
+                  <div className="rounded-xl bg-purple-50/70 p-3 text-xs text-purple-900 border border-purple-100/80">
+                    <span className="font-bold">Menejer vazifasi:</span>{" "}
+                    Ombordan yetkazuvchilarga sochiq berish va kun yakunida
+                    sotilmagan sochiqlarni qabul qilish.
                   </div>
-                </div>
-
-                {/* Key Balance Metrics */}
-                <div className="grid grid-cols-3 gap-2">
-                  {/* Cash in Hand */}
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-2.5 text-center">
-                    <span className="block text-[10px] text-emerald-800 font-bold">
-                      Qo'ldagi Naqd
-                    </span>
-                    <span className="text-sm font-extrabold text-emerald-950 block mt-0.5 truncate">
-                      {displayCash.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-emerald-700">so'm</span>
-                  </div>
-
-                  {/* Click / Card */}
-                  <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-2.5 text-center">
-                    <span className="block text-[10px] text-sky-800 font-bold">
-                      Click / Karta
-                    </span>
-                    <span className="text-sm font-extrabold text-sky-950 block mt-0.5 truncate">
-                      {displayCard.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-sky-700">so'm</span>
-                  </div>
-
-                  {/* Discount */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-2.5 text-center">
-                    <span className="block text-[10px] text-amber-900 font-bold">
-                      Chegirmalar
-                    </span>
-                    <span className="text-sm font-extrabold text-amber-950 block mt-0.5 truncate">
-                      {displayDiscount.toLocaleString()}
-                    </span>
-                    <span className="text-[10px] text-amber-700">so'm</span>
-                  </div>
-                </div>
-
-                {/* Circulation: Warehouse loads, In Vehicle, Delivered & Returned */}
-                <div className="grid grid-cols-4 gap-1.5 text-center text-xs bg-slate-50 rounded-xl p-2 border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">
-                      Ombordan
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      {currentPeriod === "today" ? (todayReport?.totalLoadedFromWarehouse || 0) : "-"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">
-                      Mashinada
-                    </span>
-                    <span className="font-bold text-emerald-700">
-                      {currentPeriod === "today" ? (todayReport?.currentStock || 0) : "-"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">
-                      Topshirildi
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      {displayDelivered}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">
-                      Qaytarildi
-                    </span>
-                    <span className="font-bold text-sky-700">
-                      {displayReturned}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Handover Action & History Button */}
-                <div className="pt-1 flex items-center justify-between gap-2 flex-wrap">
-                  {currentPeriod === "today" && (
-                    <>
-                      {isTodayClosed ? (
-                        <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 size={14} />
-                          <span>Bugungi kassa qabul qilingan</span>
-                        </div>
-                      ) : todayCash > 0 ? (
+                ) : (
+                  <>
+                    {/* Period Selector Tabs: Bugun vs Barcha davr */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                        Haydovchi Balansi & Statistika
+                      </span>
+                      <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
                         <button
                           type="button"
-                          onClick={() =>
-                            handleAcceptHandover(staffId, todayReport?.id)
-                          }
-                          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+                          onClick={() => togglePeriod(staffId)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
+                            currentPeriod === "today"
+                              ? "bg-white text-slate-900 font-bold shadow-xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
                         >
-                          <DollarSign size={14} />
-                          <span>
-                            Kassani qabul qilish ({todayCash.toLocaleString()}{" "}
-                            so'm)
-                          </span>
+                          Bugun
                         </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">
-                          Bugun naqd pul yig'ilmagan
-                        </span>
-                      )}
-                    </>
-                  )}
+                        <button
+                          type="button"
+                          onClick={() => togglePeriod(staffId)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
+                            currentPeriod === "all"
+                              ? "bg-white text-slate-900 font-bold shadow-xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
+                        >
+                          Barchasi
+                        </button>
+                      </div>
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSelectedStaffHistory({
-                        id: staffId,
-                        name: staff.name,
-                      })
-                    }
-                    className="ml-auto inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                  >
-                    <Clock size={13} />
-                    <span>Hisobotlar tarixi</span>
-                  </button>
-                </div>
+                    {/* Key Balance Metrics */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* Cash in Hand */}
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-emerald-800 font-bold">
+                          Qo'ldagi Naqd
+                        </span>
+                        <span className="text-sm font-extrabold text-emerald-950 block mt-0.5 truncate">
+                          {displayCash.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-emerald-700">
+                          so'm
+                        </span>
+                      </div>
+
+                      {/* Click / Card */}
+                      <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-sky-800 font-bold">
+                          Click / Karta
+                        </span>
+                        <span className="text-sm font-extrabold text-sky-950 block mt-0.5 truncate">
+                          {displayCard.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-sky-700">so'm</span>
+                      </div>
+
+                      {/* Discount */}
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-amber-900 font-bold">
+                          Chegirmalar
+                        </span>
+                        <span className="text-sm font-extrabold text-amber-950 block mt-0.5 truncate">
+                          {displayDiscount.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-amber-700">so'm</span>
+                      </div>
+                    </div>
+
+                    {/* Circulation: Warehouse loads, In Vehicle, Delivered & Returned */}
+                    <div className="grid grid-cols-4 gap-1.5 text-center text-xs bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          Ombordan
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {currentPeriod === "today"
+                            ? todayReport?.totalLoadedFromWarehouse || 0
+                            : "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          Mashinada
+                        </span>
+                        <span className="font-bold text-emerald-700">
+                          {currentPeriod === "today"
+                            ? todayReport?.currentStock || 0
+                            : "-"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          Topshirildi
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {displayDelivered}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block">
+                          Qaytarildi
+                        </span>
+                        <span className="font-bold text-sky-700">
+                          {displayReturned}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Handover Action & History Button */}
+                    <div className="pt-1 flex items-center justify-between gap-2 flex-wrap">
+                      {currentPeriod === "today" && (
+                        <>
+                          {isTodayClosed ? (
+                            <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 size={14} />
+                              <span>Bugungi kassa qabul qilingan</span>
+                            </div>
+                          ) : todayCash > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleAcceptHandover(staffId, todayReport?.id)
+                              }
+                              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
+                            >
+                              <DollarSign size={14} />
+                              <span>
+                                Kassani qabul qilish (
+                                {todayCash.toLocaleString()} so'm)
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400">
+                              Bugun naqd pul yig'ilmagan
+                            </span>
+                          )}
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedStaffHistory({
+                            id: staffId,
+                            name: staff.name,
+                          })
+                        }
+                        className="ml-auto inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                      >
+                        <Clock size={13} />
+                        <span>Hisobotlar tarixi</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })
@@ -531,25 +536,33 @@ export function StaffManagementPage({
                       </div>
 
                       {/* Warehouse Loads & Unsold returned */}
-                      {(rep.totalLoadedFromWarehouse > 0 || rep.unsoldTowelsReturned > 0) && (
+                      {(rep.totalLoadedFromWarehouse > 0 ||
+                        rep.unsoldTowelsReturned > 0) && (
                         <div className="pt-1 border-t border-slate-200/80 text-[10px] text-slate-500 space-y-0.5">
                           <div className="flex justify-between">
-                            <span>Ombordan olindi: <b>{rep.totalLoadedFromWarehouse || 0} ta</b></span>
+                            <span>
+                              Ombordan olindi:{" "}
+                              <b>{rep.totalLoadedFromWarehouse || 0} ta</b>
+                            </span>
                             {rep.unsoldTowelsReturned > 0 && (
                               <span className="text-amber-800 font-semibold">
                                 Sotilmay qaytdi: {rep.unsoldTowelsReturned} ta
                               </span>
                             )}
                           </div>
-                          {Array.isArray(rep.warehouseLoads) && rep.warehouseLoads.length > 0 && (
-                            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                              {rep.warehouseLoads.map((wl, wIdx) => (
-                                <span key={wl.id || wIdx} className="rounded bg-white px-1.5 py-0.5 border border-slate-200 font-mono text-[9px]">
-                                  {wl.time}: +{wl.count}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {Array.isArray(rep.warehouseLoads) &&
+                            rep.warehouseLoads.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                                {rep.warehouseLoads.map((wl, wIdx) => (
+                                  <span
+                                    key={wl.id || wIdx}
+                                    className="rounded bg-white px-1.5 py-0.5 border border-slate-200 font-mono text-[9px]"
+                                  >
+                                    {wl.time}: +{wl.count}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>

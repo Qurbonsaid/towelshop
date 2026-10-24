@@ -1,8 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
-  ArrowLeft,
   Building2,
   Check,
   DollarSign,
@@ -29,7 +28,6 @@ export function NewSalePage({
 }) {
   const { shopId: paramShopId, barberId: paramBarberId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const isAdmin = role === ROLES.ADMIN;
 
   // Selected shop & barber (from route params or selector dropdowns)

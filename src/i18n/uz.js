@@ -5,7 +5,9 @@ export const uz = {
 
   roles: {
     admin: "Administrator",
-    staff: "Xodim",
+    delivery: "Yetkazish (Haydovchi)",
+    manager: "Menejer (Omborchi)",
+    staff: "Yetkazish (Haydovchi)",
     barber: "Sartarosh",
   },
 
@@ -36,11 +38,30 @@ export const uz = {
     sales: "Savdolar",
     stats: "Statistika",
     staff: "Xodimlar",
+    warehouse: "Ombor",
     profile: "Profil",
-    adminDashboard: "Admin paneli",
-    staffDashboard: "Xodim paneli",
     map: "Xarita",
     logout: "Chiqish",
+  },
+
+  manager: {
+    title: "Ombor nazorati",
+    subtitle: "Yetkazuvchilarga sochiq berish va qoldiqni qabul qilish",
+    giveTowels: "Sochiq berish",
+    receiveTowels: "Qoldiqni qabul qilish",
+    driverList: "Yetkazuvchilar ro'yxati",
+    loadedToday: "Ombordan berildi",
+    deliveredToday: "Tarqatildi",
+    inCar: "Mashinada",
+    returnedUsed: "Qaytarilgan (ishlatilgan)",
+    returnedUnsold: "Sotilmay qaytgan",
+    noDrivers: "Hozircha yetkazuvchilar mavjud emas",
+    loadModalTitle: "Yetkazuvchiga sochiq berish",
+    receiveModalTitle: "Sotilmagan sochiqlarni qabul qilish",
+    countLabel: "Beriladigan sochiqlar soni (dona)",
+    unsoldLabel: "Sotilmagan yangi sochiqlar soni (dona)",
+    confirmGive: "Berishni tasdiqlash",
+    confirmReceive: "Qabul qilish va kunni yopish",
   },
 
   common: {
@@ -143,6 +164,8 @@ export const uz = {
     barbers: {
       title: "Sartaroshlar (Mijozlar)",
       addBtn: "Yangi sartarosh",
+      editTitle: "Sartarosh ma'lumotlarini tahrirlandi",
+      editBody: "Sartarosh ma'lumotlari xodim tomonidan tahrirlandi!",
       barbershopLabel: "Biriktirilgan sartaroshxona",
       nameLabel: "Sartarosh ismi va familiyasi",
       namePlaceholder: "Jasur Rustamov",
@@ -316,7 +339,7 @@ export const uz = {
     paymentAmountLabel: "Qabul qilingan to'lov (ixtiyoriy, so'm)",
     totalAmountLabel: "Jami savdo summasi",
     noteLabel: "Izoh (ixtiyoriy)",
-    recordDeliveryBtn: "Savdoni tasdiqlash va saqlash",
+    recordDeliveryBtn: "Tasdiqlash va saqlash",
     recordReturnBtn: "Qaytarimni saqlash",
     deliverySuccess: "Sochiq topshirildi va savdo yozildi!",
     returnSuccess: "Qaytarim muvaffaqiyatli saqlandi!",
@@ -335,23 +358,53 @@ export const uz = {
       handover: "Kunlik kassa topshirildi",
     },
     pushDelivery: (staffName, barberName, quantityDelivered, totalPrice) =>
-      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona toza sochiq topshirdi (${Number(totalPrice).toLocaleString()} so'm).`,
+      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona toza sochiq topshirdi (${Number(
+        totalPrice
+      ).toLocaleString()} so'm).`,
     pushReturn: (staffName, barberName, returnedTowels) =>
       `${staffName}: ${barberName} sartaroshdan ${returnedTowels} dona ishlatilgan sochiq qabul qildi.`,
-    pushDeliveryAndReturn: (staffName, barberName, quantityDelivered, returnedTowels, totalPrice) =>
-      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona berildi, ${returnedTowels} dona qaytarildi (${Number(totalPrice).toLocaleString()} so'm).`,
-    pushPayment: (staffName, barberName, totalPaid, cashAmount = 0, cardAmount = 0, discount = 0) => {
+    pushDeliveryAndReturn: (
+      staffName,
+      barberName,
+      quantityDelivered,
+      returnedTowels,
+      totalPrice
+    ) =>
+      `${staffName}: ${barberName} sartaroshga ${quantityDelivered} dona berildi, ${returnedTowels} dona qaytarildi (${Number(
+        totalPrice
+      ).toLocaleString()} so'm).`,
+    pushPayment: (
+      staffName,
+      barberName,
+      totalPaid,
+      cashAmount = 0,
+      cardAmount = 0,
+      discount = 0
+    ) => {
       const details = [];
-      if (cashAmount > 0) details.push(`Naqd: ${Number(cashAmount).toLocaleString()} so'm`);
-      if (cardAmount > 0) details.push(`Karta: ${Number(cardAmount).toLocaleString()} so'm`);
-      if (discount > 0) details.push(`Chegirma: ${Number(discount).toLocaleString()} so'm`);
+      if (cashAmount > 0)
+        details.push(`Naqd: ${Number(cashAmount).toLocaleString()} so'm`);
+      if (cardAmount > 0)
+        details.push(`Karta: ${Number(cardAmount).toLocaleString()} so'm`);
+      if (discount > 0)
+        details.push(`Chegirma: ${Number(discount).toLocaleString()} so'm`);
       const detailsStr = details.length > 0 ? ` (${details.join(", ")})` : "";
-      return `${staffName}: ${barberName} sartaroshdan ${Number(totalPaid).toLocaleString()} so'm to'lov oldi${detailsStr}.`;
+      return `${staffName}: ${barberName} sartaroshdan ${Number(
+        totalPaid
+      ).toLocaleString()} so'm to'lov oldi${detailsStr}.`;
     },
     pushSaleUpdated: (staffName, barberName, details) =>
-      `${staffName}: ${barberName} sartarosh bo'yicha sotuv tahrirlandi${details ? ` (${details})` : ""}.`,
+      `${staffName}: ${barberName} sartarosh bo'yicha sotuv tahrirlandi${
+        details ? ` (${details})` : ""
+      }.`,
     pushHandover: (staffName, totalPaid, cashAmount = 0, cardAmount = 0) =>
-      `${staffName} bugungi kassani topshirdi: Jami ${Number(totalPaid).toLocaleString()} so'm (Naqd: ${Number(cashAmount).toLocaleString()} so'm, Karta: ${Number(cardAmount).toLocaleString()} so'm).`,
+      `${staffName} bugungi kassani topshirdi: Jami ${Number(
+        totalPaid
+      ).toLocaleString()} so'm (Naqd: ${Number(
+        cashAmount
+      ).toLocaleString()} so'm, Karta: ${Number(
+        cardAmount
+      ).toLocaleString()} so'm).`,
     pushSaleBody: (staffName, barberName, quantityDelivered, totalPrice) =>
       `${staffName} hodim ${barberName} sartaroshga ${quantityDelivered} ta sochiq topshirdi. Summa: ${Number(
         totalPrice

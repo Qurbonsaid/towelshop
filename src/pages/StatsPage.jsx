@@ -1,23 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { AdminPushBanner } from "../components/AdminPushBanner";
 import { AdminStatsCards } from "../components/AdminStatsCards";
 import {
   CheckCircle2,
   Clock,
   Package,
-  Plus,
   Truck,
-  X,
 } from "../components/icons";
-import { ROLES } from "../constants/roles";
+import { isDeliveryRole } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
-import {
-  closeDailyReport,
-  getTodayDateString,
-  recordWarehouseLoad,
-} from "../services/firestoreService";
-import { notifyAdminSafe } from "../services/pushService";
+import { getTodayDateString } from "../services/firestoreService";
 
 export function StatsPage({
   role,
@@ -28,25 +21,8 @@ export function StatsPage({
   returns = [],
   dailyReports = [],
 }) {
-  const isStaff = role === ROLES.STAFF;
+  const isStaff = isDeliveryRole(role);
   const todayStr = useMemo(() => getTodayDateString(), []);
-  const [successToast, setSuccessToast] = useState(null);
-
-  // Modals for Staff Driver
-  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
-  const [warehouseCount, setWarehouseCount] = useState("");
-  const [warehouseNote, setWarehouseNote] = useState("");
-  const [submittingWarehouse, setSubmittingWarehouse] = useState(false);
-
-  const [isCloseDayModalOpen, setIsCloseDayModalOpen] = useState(false);
-  const [unsoldTowelsInput, setUnsoldTowelsInput] = useState("");
-  const [closeNoteInput, setCloseNoteInput] = useState("");
-  const [submittingCloseDay, setSubmittingCloseDay] = useState(false);
-
-  const showToast = (msg) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 4000);
-  };
 
   useHeader(
     {
@@ -163,88 +139,10 @@ export function StatsPage({
     };
   }, [sales, returns, barbers]);
 
-  // Handle Record Warehouse Load
-  const handleRecordWarehouseLoad = async (e) => {
-    e.preventDefault();
-    const count = Number(warehouseCount) || 0;
-    if (count <= 0) return;
-
-    setSubmittingWarehouse(true);
-    try {
-      await recordWarehouseLoad({
-        staffId: userId,
-        staffName: userProfile?.name || "Xodim",
-        count,
-        note: warehouseNote,
-      });
-
-      // Notify admin
-      const staffName = userProfile?.name || "Haydovchi";
-      notifyAdminSafe(
-        "Ombordan sochiq olindi",
-        `${staffName} ombordan ${count} dona sochiq olib ketdi.`
-      );
-
-      setWarehouseCount("");
-      setWarehouseNote("");
-      setIsWarehouseModalOpen(false);
-      showToast(`${count} dona sochiq ombordan olindi deb qayd etildi!`);
-    } catch (err) {
-      console.error("Warehouse load error:", err);
-      alert(uz.common.error);
-    } finally {
-      setSubmittingWarehouse(false);
-    }
-  };
-
-  // Open Close Day Modal
-  const handleOpenCloseDayModal = () => {
-    // Pre-fill with current calculated stock in car
-    setUnsoldTowelsInput(String(staffTodayStats?.currentStock || 0));
-    setCloseNoteInput("");
-    setIsCloseDayModalOpen(true);
-  };
-
-  // Submit Close Day
-  const handleConfirmCloseDay = async (e) => {
-    e.preventDefault();
-    if (!staffTodayStats) return;
-
-    setSubmittingCloseDay(true);
-    const unsold = Number(unsoldTowelsInput) || 0;
-    try {
-      await closeDailyReport(staffTodayStats.reportId, {
-        unsoldTowelsReturned: unsold,
-        note: closeNoteInput,
-      });
-
-      const staffName = userProfile?.name || "Haydovchi";
-      notifyAdminSafe(
-        "Kunlik hisobot topshirildi",
-        `${staffName} ishni yakunladi. Naqd: ${staffTodayStats.cashAmount.toLocaleString()} so'm, Qaytarilgan sochiq: ${unsold} dona.`
-      );
-
-      setIsCloseDayModalOpen(false);
-      showToast("Kunlik hisobot muvaffaqiyatli topshirildi va yopildi!");
-    } catch (err) {
-      console.error("Close day error:", err);
-      alert(uz.common.error);
-    } finally {
-      setSubmittingCloseDay(false);
-    }
-  };
-
   // Staff Driver View
   if (isStaff && staffTodayStats) {
     return (
       <div className="space-y-4 pb-8">
-        {successToast && (
-          <div className="fixed top-16 left-1/2 z-50 -translate-x-1/2 rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 shadow-xl animate-in slide-in-from-top-2 duration-150 flex items-center gap-2 text-xs font-bold text-emerald-800">
-            <CheckCircle2 size={16} className="text-emerald-600" />
-            <span>{successToast}</span>
-          </div>
-        )}
-
         {/* 1. HERO INVENTORY CARD: Current Stock in Vehicle */}
         <div className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-600 to-emerald-800 p-4 text-white shadow-md space-y-3">
           <div className="flex items-start justify-between">
@@ -263,14 +161,14 @@ export function StatsPage({
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsWarehouseModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-bold text-emerald-800 shadow-xs hover:bg-emerald-50 active:scale-95 transition-all"
-            >
-              <Plus size={15} />
-              <span>Ombordan olish</span>
-            </button>
+            <div className="rounded-xl bg-white/20 px-3 py-1.5 text-right backdrop-blur-xs">
+              <span className="text-[10px] text-emerald-100 block">
+                Ombordan berildi:
+              </span>
+              <span className="text-base font-extrabold text-white">
+                {staffTodayStats.totalLoadedFromWarehouse} dona
+              </span>
+            </div>
           </div>
 
           {/* Quick Flow breakdown */}
@@ -331,32 +229,23 @@ export function StatsPage({
 
         {/* 3. WAREHOUSE PICKUPS TIMELINE (Qachon nechta olingan) */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                <Package size={18} />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Ombordan olingan sochiqlar
-                </h3>
-                <p className="text-[11px] text-slate-500">
-                  Bugungi kun davomida yuklanganlar tarixi
-                </p>
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+              <Package size={18} />
             </div>
-            <button
-              type="button"
-              onClick={() => setIsWarehouseModalOpen(true)}
-              className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:scale-95"
-            >
-              + Qo'shish
-            </button>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Menejer tomonidan berilgan sochiqlar
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Bugun omborchi yuklab bergan sochiqlar tarixi
+              </p>
+            </div>
           </div>
 
           {staffTodayStats.warehouseLoads.length === 0 ? (
             <div className="rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-400">
-              Bugun hali ombordan sochiq olinmadi. "Ombordan olish" tugmasi orqali kiriting.
+              Bugun hali ombor menejeri tomonidan sochiq berilmadi.
             </div>
           ) : (
             <div className="space-y-2">
@@ -381,39 +270,40 @@ export function StatsPage({
           )}
         </div>
 
-        {/* 4. END OF DAY CLOSING SECTION (Ish yakuni va sotilmay qolganlar) */}
+        {/* 4. END OF DAY STATUS */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           {staffTodayStats.isClosed ? (
             <div className="space-y-2 rounded-xl bg-emerald-50 p-3.5 border border-emerald-200 text-xs">
               <div className="flex items-center gap-2 font-bold text-emerald-800">
                 <CheckCircle2 size={18} className="text-emerald-600" />
-                <span>Bugungi kun yakunlandi va hisobot adminga topshirildi.</span>
+                <span>
+                  Bugungi kun yakunlandi va omborchi tomonidan qabul qilindi.
+                </span>
               </div>
               <div className="pt-2 border-t border-emerald-200/70 text-[11px] text-emerald-900 space-y-1">
                 <p>
-                  • Sotilmay omborga qaytarilgan yangi sochiqlar: <strong>{staffTodayStats.unsoldTowelsReturned} dona</strong>
+                  • Sotilmay omborga qaytarilgan yangi sochiqlar:{" "}
+                  <strong>{staffTodayStats.unsoldTowelsReturned} dona</strong>
                 </p>
                 <p>
-                  • Topshirilgan kassa naqdi: <strong>{staffTodayStats.cashAmount.toLocaleString()} so'm</strong>
+                  • Yig'ilgan naqd pul:{" "}
+                  <strong>
+                    {staffTodayStats.cashAmount.toLocaleString()} so'm
+                  </strong>
                 </p>
               </div>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Ish yakunida kunni yopish</h4>
-                <p className="text-xs text-slate-500">
-                  Ish kuni tugaganda omborga qaytgan yangi sochiqlar va kassani adminga topshiring
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleOpenCloseDayModal}
-                className="w-full rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-98 transition-all flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 size={16} />
-                <span>Kunni yakunlash va hisobotni saqlash</span>
-              </button>
+            <div className="space-y-1.5 rounded-xl bg-amber-50/70 p-3.5 border border-amber-200 text-xs text-amber-900">
+              <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <Clock size={14} className="text-amber-700" />
+                <span>Kun yakunida sochiqlarni topshirish</span>
+              </h4>
+              <p className="text-[11px] text-amber-800">
+                Ish kuni tugagach, sotilmagan ortib qolgan yangi sochiqlarni
+                ombor menejeriga topshiring. Menejer qoldiqni sanab qabul qiladi
+                va hisobotni yakunlaydi.
+              </p>
             </div>
           )}
         </div>
@@ -477,177 +367,6 @@ export function StatsPage({
             </div>
           )}
         </div>
-
-        {/* MODAL: Record Warehouse Load */}
-        {isWarehouseModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                    <Truck size={18} />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Ombordan sochiq olish
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsWarehouseModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleRecordWarehouseLoad} className="mt-4 space-y-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Olingan yangi sochiqlar soni (dona) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    autoFocus
-                    value={warehouseCount}
-                    onChange={(e) => setWarehouseCount(e.target.value)}
-                    placeholder="Masalan: 200"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Izoh (ixtiyoriy)
-                  </label>
-                  <input
-                    type="text"
-                    value={warehouseNote}
-                    onChange={(e) => setWarehouseNote(e.target.value)}
-                    placeholder="Masalan: Ertalabki yuklash"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsWarehouseModalOpen(false)}
-                    className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {uz.common.cancel}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingWarehouse || !warehouseCount}
-                    className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    {submittingWarehouse ? uz.common.loading : "Saqlash"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL: Close Day & Record Unsold Towels */}
-        {isCloseDayModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl animate-in zoom-in-95 duration-150">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                    <CheckCircle2 size={18} />
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Ish yakuni: Kunni yopish
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsCloseDayModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <form onSubmit={handleConfirmCloseDay} className="mt-4 space-y-3.5">
-                {/* Summary Box */}
-                <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs space-y-1.5">
-                  <div className="flex justify-between font-semibold text-slate-700">
-                    <span>Qo'ldagi naqd pul:</span>
-                    <span className="font-bold text-emerald-700">
-                      {staffTodayStats.cashAmount.toLocaleString()} so'm
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-slate-700">
-                    <span>Click / Karta:</span>
-                    <span className="font-bold text-sky-700">
-                      {staffTodayStats.cardAmount.toLocaleString()} so'm
-                    </span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-slate-700">
-                    <span>Qaytarilgan ishlatilgan sochiqlar:</span>
-                    <span className="font-bold text-slate-900">
-                      {staffTodayStats.returnedTowels} dona
-                    </span>
-                  </div>
-                </div>
-
-                {/* Unsold Towels Returned Input */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Sotilmay qolgan yangi sochiqlar (omborga qaytadigan) *
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={unsoldTowelsInput}
-                    onChange={(e) => setUnsoldTowelsInput(e.target.value)}
-                    placeholder="0"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    Hisoblangan qoldiq: {staffTodayStats.currentStock} dona
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Yakuniy izoh (ixtiyoriy)
-                  </label>
-                  <input
-                    type="text"
-                    value={closeNoteInput}
-                    onChange={(e) => setCloseNoteInput(e.target.value)}
-                    placeholder="Masalan: Barcha sartaroshxonalar aylanib chiqildi"
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsCloseDayModalOpen(false)}
-                    className="rounded-xl border border-slate-300 bg-white py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    {uz.common.cancel}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingCloseDay}
-                    className="rounded-xl bg-emerald-600 py-2.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    {submittingCloseDay ? uz.common.loading : "Tasdiqlash va Yopish"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     );
   }

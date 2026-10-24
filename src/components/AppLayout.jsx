@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   BarChart3,
   Building2,
+  Package,
   Receipt,
   Shield,
   User,
@@ -20,7 +21,9 @@ export function AppLayout({ role, userProfile, _onLogout }) {
   const { title, subtitle, showBack, backTo, actions } = useHeaderContext();
 
   const isAdmin = role === ROLES.ADMIN;
+  const isManager = role === ROLES.MANAGER;
   const isProfileActive = location.pathname === "/profile";
+  const isWarehouseActive = location.pathname.startsWith("/ombor");
 
   // Bottom Nav active states
   const isBarbershopsActive =
@@ -108,6 +111,11 @@ export function AppLayout({ role, userProfile, _onLogout }) {
                 size={14}
                 className={isProfileActive ? "text-white" : "text-indigo-600"}
               />
+            ) : isManager ? (
+              <Package
+                size={14}
+                className={isProfileActive ? "text-white" : "text-purple-600"}
+              />
             ) : (
               <User
                 size={14}
@@ -116,7 +124,11 @@ export function AppLayout({ role, userProfile, _onLogout }) {
             )}
             <span className="max-w-[85px] truncate">
               {userProfile?.name?.split(" ")[0] ||
-                (isAdmin ? uz.roles.admin : uz.roles.staff)}
+                (isAdmin
+                  ? uz.roles.admin
+                  : isManager
+                    ? uz.roles.manager
+                    : uz.roles.delivery)}
             </span>
           </Link>
         </div>
@@ -136,71 +148,105 @@ export function AppLayout({ role, userProfile, _onLogout }) {
       {/* CRITICAL HINT: Hide Xodimlar tab completely if the logged-in user's role is staff! Visible ONLY to admin. */}
       {!isSaleActionPage && (
         <nav className="fixed bottom-0 left-0 right-0 z-30 mx-auto max-w-lg border-t border-slate-200/90 bg-white/95 px-2 py-2 backdrop-blur-md shadow-lg">
-          <div
-            className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
-          >
-            {/* 1. Sartaroshxonalar (Barbershops) */}
-            <Link
-              to="/sartaroshxonalar"
-              className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-                isBarbershopsActive
-                  ? "bg-emerald-50 text-emerald-700 font-bold"
-                  : "text-slate-500 hover:text-slate-900 font-medium"
-              }`}
-            >
-              <Building2 size={20} />
-              <span className="text-[10px] mt-1 leading-none tracking-tight">
-                {uz.nav.barbershops}
-              </span>
-            </Link>
-
-            {/* 2. Savdolar (Sales / Transactions) */}
-            <Link
-              to="/savdolar"
-              className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-                isSalesActive
-                  ? "bg-emerald-50 text-emerald-700 font-bold"
-                  : "text-slate-500 hover:text-slate-900 font-medium"
-              }`}
-            >
-              <Receipt size={20} />
-              <span className="text-[10px] mt-1 leading-none tracking-tight">
-                {uz.nav.sales}
-              </span>
-            </Link>
-
-            {/* 3. Statistikalar (Stats / Driver Daily Report) */}
-            <Link
-              to="/statistika"
-              className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-                isStatsActive
-                  ? "bg-emerald-50 text-emerald-700 font-bold"
-                  : "text-slate-500 hover:text-slate-900 font-medium"
-              }`}
-            >
-              <BarChart3 size={20} />
-              <span className="text-[10px] mt-1 leading-none tracking-tight">
-                {isAdmin ? uz.nav.stats : "Hisobot"}
-              </span>
-            </Link>
-
-            {/* 4. Xodimlar (Staff) -> CRITICAL HINT: ONLY visible to admin, hidden for staff */}
-            {isAdmin && (
+          {isManager ? (
+            <div className="grid grid-cols-2 gap-2">
+              {/* 1. Ombor (Warehouse) */}
               <Link
-                to="/xodimlar"
+                to="/ombor"
                 className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
-                  isStaffActive
+                  isWarehouseActive
                     ? "bg-emerald-50 text-emerald-700 font-bold"
                     : "text-slate-500 hover:text-slate-900 font-medium"
                 }`}
               >
-                <Users size={20} />
+                <Package size={20} />
                 <span className="text-[10px] mt-1 leading-none tracking-tight">
-                  {uz.nav.staff}
+                  {uz.nav.warehouse}
                 </span>
               </Link>
-            )}
-          </div>
+
+              {/* 2. Profil */}
+              <Link
+                to="/profile"
+                className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                  isProfileActive
+                    ? "bg-emerald-50 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-900 font-medium"
+                }`}
+              >
+                <User size={20} />
+                <span className="text-[10px] mt-1 leading-none tracking-tight">
+                  {uz.nav.profile}
+                </span>
+              </Link>
+            </div>
+          ) : (
+            <div
+              className={`grid gap-1 ${isAdmin ? "grid-cols-4" : "grid-cols-3"}`}
+            >
+              {/* 1. Sartaroshxonalar (Barbershops) */}
+              <Link
+                to="/sartaroshxonalar"
+                className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                  isBarbershopsActive
+                    ? "bg-emerald-50 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-900 font-medium"
+                }`}
+              >
+                <Building2 size={20} />
+                <span className="text-[10px] mt-1 leading-none tracking-tight">
+                  {uz.nav.barbershops}
+                </span>
+              </Link>
+
+              {/* 2. Savdolar (Sales / Transactions) */}
+              <Link
+                to="/savdolar"
+                className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                  isSalesActive
+                    ? "bg-emerald-50 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-900 font-medium"
+                }`}
+              >
+                <Receipt size={20} />
+                <span className="text-[10px] mt-1 leading-none tracking-tight">
+                  {uz.nav.sales}
+                </span>
+              </Link>
+
+              {/* 3. Statistikalar (Stats / Driver Daily Report) */}
+              <Link
+                to="/statistika"
+                className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                  isStatsActive
+                    ? "bg-emerald-50 text-emerald-700 font-bold"
+                    : "text-slate-500 hover:text-slate-900 font-medium"
+                }`}
+              >
+                <BarChart3 size={20} />
+                <span className="text-[10px] mt-1 leading-none tracking-tight">
+                  {isAdmin ? uz.nav.stats : "Hisobot"}
+                </span>
+              </Link>
+
+              {/* 4. Xodimlar (Staff) -> CRITICAL HINT: ONLY visible to admin, hidden for staff */}
+              {isAdmin && (
+                <Link
+                  to="/xodimlar"
+                  className={`flex flex-col items-center justify-center rounded-xl py-1.5 transition-all ${
+                    isStaffActive
+                      ? "bg-emerald-50 text-emerald-700 font-bold"
+                      : "text-slate-500 hover:text-slate-900 font-medium"
+                  }`}
+                >
+                  <Users size={20} />
+                  <span className="text-[10px] mt-1 leading-none tracking-tight">
+                    {uz.nav.staff}
+                  </span>
+                </Link>
+              )}
+            </div>
+          )}
         </nav>
       )}
     </div>

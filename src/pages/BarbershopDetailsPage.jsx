@@ -14,7 +14,7 @@ import {
 import { BarberModal } from "../components/BarberModal";
 import { BarbershopModal } from "../components/BarbershopModal";
 import { CONTRACT_TYPES } from "../constants/models";
-import { ROLES } from "../constants/roles";
+import { ROLES, isDeliveryRole } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
 import {
@@ -34,7 +34,7 @@ export function BarbershopDetailsPage({
   const { shopId } = useParams();
   const navigate = useNavigate();
   const isAdmin = role === ROLES.ADMIN;
-  const canManage = isAdmin || role === ROLES.STAFF;
+  const canManage = isAdmin || isDeliveryRole(role);
 
   const [isEditShopModalOpen, setIsEditShopModalOpen] = useState(false);
   const [isAddBarberModalOpen, setIsAddBarberModalOpen] = useState(false);

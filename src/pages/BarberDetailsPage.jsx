@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle2,
   Clock,
-  DollarSign,
   Package,
   Phone,
   Receipt,
@@ -12,17 +11,14 @@ import {
 } from "../components/icons";
 
 import { BarberModal } from "../components/BarberModal";
-import { BarberPaymentModal } from "../components/BarberPaymentModal";
 import { CONTRACT_TYPES } from "../constants/models";
 import { ROLES } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
 import {
   deleteBarberCascade,
-  recordBarberPayment,
   updateBarber,
 } from "../services/firestoreService";
-import { notifyAdminSafe } from "../services/pushService";
 import { formatPhoneDisplay } from "../utils/auth";
 
 function formatDateTime(ts, fallbackDate) {
@@ -54,8 +50,6 @@ function formatDateTime(ts, fallbackDate) {
 
 export function BarberDetailsPage({
   role,
-  userId,
-  userProfile,
   barbershops = [],
   barbers = [],
   sales = [],
@@ -66,9 +60,6 @@ export function BarberDetailsPage({
   const isAdmin = role === ROLES.ADMIN;
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-
-
   const [toastMessage, setToastMessage] = useState(null);
 
   const showToast = (msg) => {
@@ -105,17 +96,17 @@ export function BarberDetailsPage({
         const timeA = a.createdAt?.toMillis
           ? a.createdAt.toMillis()
           : a.createdAt?.toDate
-          ? a.createdAt.toDate().getTime()
-          : a.createdAt
-          ? new Date(a.createdAt).getTime()
-          : 0;
+            ? a.createdAt.toDate().getTime()
+            : a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : 0;
         const timeB = b.createdAt?.toMillis
           ? b.createdAt.toMillis()
           : b.createdAt?.toDate
-          ? b.createdAt.toDate().getTime()
-          : b.createdAt
-          ? new Date(b.createdAt).getTime()
-          : 0;
+            ? b.createdAt.toDate().getTime()
+            : b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : 0;
         return timeB - timeA;
       });
   }, [sales, barberId]);
@@ -187,160 +178,6 @@ export function BarberDetailsPage({
     );
   }
 
-  // Handle Sale Modal ("Sotish")
-  const handleOpenSale = () => {
-    setDeliveryQty("");
-    setReturnQty("");
-    setSaleNote("");
-    setCashAmount("");
-    setCardAmount("");
-    setDiscount("");
-    setIsSaleModalOpen(true);
-  };
-
-  const handleSaleSubmit = async (e) => {
-    e.preventDefault();
-    const deliveredQuantity = Number(deliveryQty) || 0;
-    const returnedQuantity = Number(returnQty) || 0;
-    const cash = Number(cashAmount) || 0;
-    const card = Number(cardAmount) || 0;
-    const disc = Number(discount) || 0;
-    const totalCredit = cash + card + disc;
-
-    if (deliveredQuantity <= 0 && returnedQuantity <= 0 && totalCredit <= 0) {
-      return;
-    }
-
-    setSaleSubmitting(true);
-    const staffName = userProfile?.name || (isAdmin ? "Admin" : "Xodim");
-    const barberName = currentBarber.name;
-    const unitPrice = currentBarber.pricePerTowel || 3000;
-    const totalPrice =
-      currentBarber.contractType === CONTRACT_TYPES.PAY_FOR_USED
-        ? returnedQuantity * unitPrice
-        : deliveredQuantity * unitPrice;
-
-    try {
-      await createSale({
-        barberId: currentBarber.id,
-        barbershopId: currentBarber.barbershopId,
-        staffId: userId,
-        staffName,
-        barberName,
-        barbershopName: currentShop?.name || "",
-        quantityDelivered: deliveredQuantity,
-        returnedTowels: returnedQuantity,
-        unitPrice,
-        contractType: currentBarber.contractType,
-        cashAmount: cash,
-        cardAmount: card,
-        discount: disc,
-        note: saleNote,
-      });
-
-      // Dispatch push notification to admins if staff performed this action
-      if (!isAdmin) {
-        if (deliveredQuantity > 0 && returnedQuantity > 0) {
-          notifyAdminSafe(
-            uz.notifications.titles.deliveryAndReturn,
-            uz.notifications.pushDeliveryAndReturn(
-              staffName,
-              barberName,
-              deliveredQuantity,
-              returnedQuantity,
-              totalPrice,
-            ),
-          );
-        } else if (deliveredQuantity > 0) {
-          notifyAdminSafe(
-            uz.notifications.titles.delivery,
-            uz.notifications.pushDelivery(
-              staffName,
-              barberName,
-              deliveredQuantity,
-              totalPrice,
-            ),
-          );
-        } else if (returnedQuantity > 0) {
-          notifyAdminSafe(
-            uz.notifications.titles.return,
-            uz.notifications.pushReturn(staffName, barberName, returnedQuantity),
-          );
-        } else if (totalCredit > 0) {
-          notifyAdminSafe(
-            uz.notifications.titles.payment,
-            uz.notifications.pushPayment(
-              staffName,
-              barberName,
-              totalCredit,
-              cash,
-              card,
-              disc,
-            ),
-          );
-        }
-      }
-
-      setIsSaleModalOpen(false);
-      showToast(
-        deliveredQuantity <= 0 && returnedQuantity <= 0
-          ? uz.barberDetails.paymentSuccess
-          : deliveredQuantity > 0 && returnedQuantity > 0
-            ? uz.common.success
-            : deliveredQuantity > 0
-              ? uz.barberDetails.deliverySuccess
-              : uz.barberDetails.returnSuccess,
-      );
-
-      // If staff makes a sale, navigate them to stats page to see/enter daily pickup and balance
-      if (!isAdmin) {
-        setTimeout(() => {
-          navigate("/statistika");
-        }, 1200);
-      }
-    } catch (err) {
-      console.error("Sale action error:", err);
-      alert(uz.common.error);
-    } finally {
-      setSaleSubmitting(false);
-    }
-  };
-
-  const handlePaymentSubmit = async (paymentData) => {
-    const staffName = userProfile?.name || (isAdmin ? "Admin" : "Xodim");
-    const barberName = currentBarber.name;
-    const cash = Number(paymentData.cashAmount) || 0;
-    const card = Number(paymentData.cardAmount) || 0;
-    const disc = Number(paymentData.discount) || 0;
-    const totalCredit = cash + card + disc;
-
-    await recordBarberPayment({
-      ...paymentData,
-      barberId: currentBarber.id,
-      barberName,
-      barbershopId: currentBarber.barbershopId,
-      barbershopName: currentShop?.name || "",
-      staffId: userId,
-      staffName,
-    });
-
-    if (!isAdmin && totalCredit > 0) {
-      notifyAdminSafe(
-        uz.notifications.titles.payment,
-        uz.notifications.pushPayment(
-          staffName,
-          barberName,
-          totalCredit,
-          cash,
-          card,
-          disc,
-        ),
-      );
-    }
-
-    showToast(uz.barberDetails.paymentSuccess);
-  };
-
   const handleUpdateBarber = async (data) => {
     await updateBarber(currentBarber.id, data);
     showToast(uz.common.success);
@@ -402,23 +239,17 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* Quick action buttons: Sotish (Delivery/Return) & To'lov qabul qilish */}
-        <div className="mt-4 grid grid-cols-2 gap-2">
+        {/* Main action button: Sotish (Delivery/Return) with full width */}
+        <div className="mt-4 flex items-center justify-center">
           <button
             type="button"
-            onClick={() => navigate(`/sartaroshxonalar/${shopId}/barber/${barberId}/sale`)}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-3 py-2.5 text-xs font-bold text-white shadow-xs hover:from-emerald-700 hover:to-emerald-800 active:scale-98 transition-all"
+            onClick={() =>
+              navigate(`/sartaroshxonalar/${shopId}/barber/${barberId}/sale`)
+            }
+            className="w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <Package size={15} />
             {uz.barberDetails.saleBtn}
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsPaymentModalOpen(true)}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-800 shadow-xs hover:bg-emerald-100 active:scale-98 transition-all"
-          >
-            <DollarSign size={15} />
-            {uz.barberDetails.settlePaymentBtn}
           </button>
         </div>
       </div>
@@ -505,7 +336,7 @@ export function BarberDetailsPage({
                 const cash = Number(s.cashAmount) || 0;
                 const card = Number(s.cardAmount) || 0;
                 const disc = Number(s.discount) || 0;
-                const totalCredit = (Number(s.totalPaid) || (cash + card)) + disc;
+                const totalCredit = (Number(s.totalPaid) || cash + card) + disc;
 
                 // Standalone payment transaction (via "To'lov qilish" button)
                 const isPaymentOnly = qtyDelivered === 0 && qtyReturned === 0;
@@ -541,7 +372,10 @@ export function BarberDetailsPage({
                             </span>
                             <span>•</span>
                             <span>
-                              Xodim: <strong className="text-slate-700">{s.staffName || "Xodim"}</strong>
+                              Xodim:{" "}
+                              <strong className="text-slate-700">
+                                {s.staffName || "Xodim"}
+                              </strong>
                             </span>
                           </div>
                         </div>
@@ -553,7 +387,8 @@ export function BarberDetailsPage({
                         </p>
                         {card > 0 && cash > 0 ? (
                           <p className="text-[9px] text-slate-500">
-                            Naqd: {cash.toLocaleString()} • Click: {card.toLocaleString()}
+                            Naqd: {cash.toLocaleString()} • Click:{" "}
+                            {card.toLocaleString()}
                           </p>
                         ) : card > 0 ? (
                           <p className="text-[9px] text-sky-700 font-semibold">
@@ -587,7 +422,9 @@ export function BarberDetailsPage({
                           {qtyReturned > 0 && (
                             <span
                               className={`block text-sky-700 ${
-                                qtyDelivered > 0 ? "text-[11px] font-semibold" : ""
+                                qtyDelivered > 0
+                                  ? "text-[11px] font-semibold"
+                                  : ""
                               }`}
                             >
                               -{qtyReturned} dona qaytarildi
@@ -601,7 +438,10 @@ export function BarberDetailsPage({
                           </span>
                           <span>•</span>
                           <span>
-                            Xodim: <strong className="text-slate-700">{s.staffName || "Xodim"}</strong>
+                            Xodim:{" "}
+                            <strong className="text-slate-700">
+                              {s.staffName || "Xodim"}
+                            </strong>
                           </span>
                         </div>
                       </div>
@@ -632,15 +472,6 @@ export function BarberDetailsPage({
           )}
         </div>
       </div>
-
-      {/* Standalone Barber Payment Modal */}
-      {isPaymentModalOpen && (
-        <BarberPaymentModal
-          barber={currentBarber}
-          onSave={handlePaymentSubmit}
-          onClose={() => setIsPaymentModalOpen(false)}
-        />
-      )}
 
       {/* Edit Barber Modal (available to both admin and staff) */}
       {isEditModalOpen && (

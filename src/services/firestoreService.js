@@ -281,7 +281,7 @@ export async function createSale({
 
   const todayStr = getTodayDateString();
 
-  return await runTransaction(db, async (transaction) => {
+  const result = await runTransaction(db, async (transaction) => {
     // -------------------------------------------------------------
     // 1. ALL READS FIRST (Firestore rule: All reads before any write)
     // -------------------------------------------------------------
@@ -507,7 +507,7 @@ export async function updateSale(
   const newQty = Number(quantityDelivered) || 0;
   const newReturnedQty = Number(returnedTowels) || 0;
 
-  return await runTransaction(db, async (transaction) => {
+  await runTransaction(db, async (transaction) => {
     // -------------------------------------------------------------
     // 1. ALL READS FIRST
     // -------------------------------------------------------------
@@ -652,7 +652,7 @@ export async function updateSale(
 }
 
 export async function deleteSale(saleId) {
-  return await runTransaction(db, async (transaction) => {
+  await runTransaction(db, async (transaction) => {
     // -------------------------------------------------------------
     // 1. ALL READS FIRST
     // -------------------------------------------------------------

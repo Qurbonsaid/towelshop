@@ -8,7 +8,7 @@ import {
   Search,
 } from "../components/icons";
 import { BarbershopModal } from "../components/BarbershopModal";
-import { ROLES } from "../constants/roles";
+import { ROLES, isDeliveryRole } from "../constants/roles";
 
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
@@ -22,7 +22,7 @@ export function BarbershopsPage({
   _returns = [],
 }) {
   const isAdmin = role === ROLES.ADMIN;
-  const canManage = isAdmin || role === ROLES.STAFF;
+  const canManage = isAdmin || isDeliveryRole(role);
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

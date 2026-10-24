@@ -8,6 +8,7 @@ export function StaffModal({ onSave, onClose }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState(ROLES.DELIVERY);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -33,7 +34,7 @@ export function StaffModal({ onSave, onClose }) {
         name: name.trim(),
         phone: cleanPhone,
         password,
-        role: ROLES.STAFF,
+        role,
       });
       onClose();
     } catch (err) {
@@ -113,6 +114,38 @@ export function StaffModal({ onSave, onClose }) {
               placeholder={uz.admin.staff.passwordPlaceholder}
               className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Xodim roli *
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRole(ROLES.DELIVERY)}
+                className={`rounded-xl border p-2.5 text-left transition-all ${
+                  role === ROLES.DELIVERY
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <div className="text-xs font-bold">Yetkazish</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Haydovchi / Savdo</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole(ROLES.MANAGER)}
+                className={`rounded-xl border p-2.5 text-left transition-all ${
+                  role === ROLES.MANAGER
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <div className="text-xs font-bold">Menejer</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">Ombor nazorati</div>
+              </button>
+            </div>
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}

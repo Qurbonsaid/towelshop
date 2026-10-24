@@ -56,18 +56,19 @@ Ilova mobil qurilmalarda (Android, iOS) hamda shaxsiy kompyuterlarda (Chrome, Ed
 
 ---
 
-## 🔐 Foydalanuvchilar va Huquqlar
+## 🔐 Foydalanuvchilar va Rollar
 
-| Huquqlar / Imkoniyatlar | Admin | Xodim (Haydovchi) |
-|---|:---:|:---:|
-| Tizimga telefon raqam va parol bilan kirish | ✅ | ✅ |
-| Yangi sartaroshxona va sartarosh qo'shish | ✅ | ✅ |
-| Savdo qilish (Yetkazish, Qaytarish, To'lov, Chegirma) | ✅ | ✅ |
-| O'z savdolarini va hisob-kitoblarni cheklovlarsiz tahrirlash | ✅ | ✅ |
-| Ombordan sochiq olish va kunni yopish | ✅ | ✅ |
-| Xodimlarni boshqarish va rollarni o'zgartirish | ✅ | ❌ |
-| Ma'lumotlarni butunlay o'chirish (`deleteDoc`) | ✅ | ❌ |
-| Push-bildirishnomalarni qabul qilish | ✅ | ❌ |
+| Huquqlar / Imkoniyatlar | Admin | Yetkazuvchi (`delivery`) | Menejer (`manager`) |
+|---|:---:|:---:|:---:|
+| Tizimga telefon raqam va parol bilan kirish | ✅ | ✅ | ✅ |
+| Yangi sartaroshxona va sartarosh qo'shish | ✅ | ✅ | ❌ |
+| Savdo qilish (Yetkazish, Qaytarish, To'lov, Chegirma) | ✅ | ✅ | ❌ |
+| O'z savdolarini va hisob-kitoblarni tahrirlash | ✅ | ✅ | ❌ |
+| Yetkazuvchiga sochiq berish (Ombor yuklash) | ✅ | ❌ | ✅ |
+| Sotilmay qaytgan sochiqlarni qabul qilish | ✅ | ❌ | ✅ |
+| Xodimlarni boshqarish va rollarni belgilash | ✅ | ❌ | ❌ |
+| Ma'lumotlarni butunlay o'chirish (`deleteDoc`) | ✅ | ❌ | ❌ |
+| Push-bildirishnomalarni qabul qilish | ✅ | ❌ | ❌ |
 
 ---
 
@@ -163,7 +164,7 @@ Barcha kolleksiyalar optimallashtirilgan, ortiqcha va eski maydonlardan tozalang
 {
   "phone": "938001223",
   "name": "Каримов Абдулазиз",
-  "role": "staff",                 // "admin" yoki "staff"
+  "role": "delivery",              // "admin", "delivery" (yoki eski "staff"), "manager"
   "fcmTokens": ["..."],
   "createdAt": "Timestamp"
 }

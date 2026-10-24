@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { AlertCircle, Scissors, Trash2, X } from "./icons";
 
 import { CONTRACT_TYPES } from "../constants/models";
+import { notifyAdminSafe } from "../services/pushService";
 import { uz } from "../i18n/uz";
 
 export function BarberModal({
@@ -39,6 +40,12 @@ export function BarberModal({
 
     setSaving(true);
     try {
+      if (!isAdmin) {
+        await notifyAdminSafe({
+          title: uz.admin.barbers.editTitle,
+          body: uz.admin.barbers.editBody,
+        });
+      }
       await onSave({
         barbershopId,
         name: name.trim(),
