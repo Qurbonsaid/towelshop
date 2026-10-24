@@ -131,7 +131,9 @@ export function StaffModal({ onSave, onClose }) {
                 }`}
               >
                 <div className="text-xs font-bold">Yetkazish</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Haydovchi / Savdo</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Haydovchi / Savdo
+                </div>
               </button>
               <button
                 type="button"
@@ -143,7 +145,9 @@ export function StaffModal({ onSave, onClose }) {
                 }`}
               >
                 <div className="text-xs font-bold">Menejer</div>
-                <div className="text-[10px] text-slate-500 mt-0.5">Ombor nazorati</div>
+                <div className="text-[10px] text-slate-500 mt-0.5">
+                  Sochiqlar nazorati
+                </div>
               </button>
             </div>
           </div>

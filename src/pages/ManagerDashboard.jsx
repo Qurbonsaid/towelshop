@@ -59,7 +59,7 @@ export function ManagerDashboard({
       subtitle: `${todayStr} • Sochiqlar nazorati`,
       showBack: false,
     },
-    [todayStr]
+    [todayStr],
   );
 
   // Only drivers (delivery or legacy staff)
@@ -78,7 +78,7 @@ export function ManagerDashboard({
     drivers.forEach((driver) => {
       const driverId = driver.uid || driver.id;
       const rep = dailyReports.find(
-        (r) => r.staffId === driverId && r.date === todayStr
+        (r) => r.staffId === driverId && r.date === todayStr,
       );
 
       const loaded = Number(rep?.totalLoadedFromWarehouse || 0);
@@ -107,7 +107,7 @@ export function ManagerDashboard({
   const handleOpenLoadModal = (driver) => {
     setLoadModalDriver(driver);
     setLoadCount("");
-    setLoadNote("Ombordan berildi");
+    setLoadNote("Sochiqlardan berildi");
   };
 
   // Submit Give Towels
@@ -126,11 +126,11 @@ export function ManagerDashboard({
         staffId: driverId,
         staffName: loadModalDriver.name || "Yetkazuvchi",
         count,
-        note: loadNote.trim() || "Ombordan berildi",
+        note: loadNote.trim() || "Sochiqlardan berildi",
       });
 
       showSuccess(
-        `${loadModalDriver.name || "Yetkazuvchi"}ga ${count} dona sochiq berildi!`
+        `${loadModalDriver.name || "Yetkazuvchi"}ga ${count} dona sochiq berildi!`,
       );
       setLoadModalDriver(null);
     } catch (err) {
@@ -144,8 +144,10 @@ export function ManagerDashboard({
   // Handle open Receive Unsold Towels Modal
   const handleOpenReceiveModal = (driver, currentExpectedStock) => {
     setReceiveModalDriver(driver);
-    setUnsoldReceivedCount(currentExpectedStock > 0 ? String(currentExpectedStock) : "0");
-    setReceiveNote("Qoldiq omborga qabul qilindi");
+    setUnsoldReceivedCount(
+      currentExpectedStock > 0 ? String(currentExpectedStock) : "0",
+    );
+    setReceiveNote("Qoldiq sochiqlarga qabul qilindi");
   };
 
   // Submit Receive Unsold Towels & Close Day
@@ -153,7 +155,9 @@ export function ManagerDashboard({
     e.preventDefault();
     const unsold = Number(unsoldReceivedCount);
     if (isNaN(unsold) || unsold < 0 || !receiveModalDriver) {
-      showError("Iltimos, to'g'ri sochiqlar sonini kiriting (0 yoki undan ko'p)");
+      showError(
+        "Iltimos, to'g'ri sochiqlar sonini kiriting (0 yoki undan ko'p)",
+      );
       return;
     }
 
@@ -164,11 +168,11 @@ export function ManagerDashboard({
 
       await closeDailyReport(reportId, {
         unsoldTowelsReturned: unsold,
-        note: receiveNote.trim() || "Omborchi tomonidan qabul qilindi",
+        note: receiveNote.trim() || "Menejer tomonidan qabul qilindi",
       });
 
       showSuccess(
-        `${receiveModalDriver.name || "Yetkazuvchi"}ning ${unsold} dona sochiqlari qabul qilindi va kun yakunlandi!`
+        `${receiveModalDriver.name || "Yetkazuvchi"}ning ${unsold} dona sochiqlari qabul qilindi va kun yakunlandi!`,
       );
       setReceiveModalDriver(null);
     } catch (err) {
@@ -205,10 +209,12 @@ export function ManagerDashboard({
             </div>
             <div>
               <span className="text-[11px] font-bold text-emerald-100 uppercase tracking-wide">
-                Bugungi Ombor Holati
+                Bugungi Sochiqlar Holati
               </span>
               <h2 className="text-sm font-semibold text-emerald-50">
-                {userProfile?.name ? `${userProfile.name} (Menejer)` : "Ombor Nazorati"}
+                {userProfile?.name
+                  ? `${userProfile.name} (Menejer)`
+                  : "Sochiqlar Nazorati"}
               </h2>
             </div>
           </div>
@@ -220,7 +226,9 @@ export function ManagerDashboard({
         {/* Aggregate Counters */}
         <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-500/50 text-center">
           <div className="rounded-xl bg-white/10 p-2 backdrop-blur-xs">
-            <span className="text-[10px] text-emerald-200 block">Ombordan berildi</span>
+            <span className="text-[10px] text-emerald-200 block">
+              Sochiqlardan berildi
+            </span>
             <span className="text-lg font-extrabold text-white block mt-0.5">
               {summaryStats.totalLoaded}
             </span>
@@ -228,7 +236,9 @@ export function ManagerDashboard({
           </div>
 
           <div className="rounded-xl bg-white/10 p-2 backdrop-blur-xs">
-            <span className="text-[10px] text-emerald-200 block">Mashinalarda</span>
+            <span className="text-[10px] text-emerald-200 block">
+              Mashinalarda
+            </span>
             <span className="text-lg font-extrabold text-white block mt-0.5">
               {summaryStats.totalCurrentStock}
             </span>
@@ -236,7 +246,9 @@ export function ManagerDashboard({
           </div>
 
           <div className="rounded-xl bg-white/10 p-2 backdrop-blur-xs">
-            <span className="text-[10px] text-emerald-200 block">Sotilmay qaytdi</span>
+            <span className="text-[10px] text-emerald-200 block">
+              Sotilmay qaytdi
+            </span>
             <span className="text-lg font-extrabold text-white block mt-0.5">
               {summaryStats.totalUnsoldReturned}
             </span>
@@ -250,7 +262,9 @@ export function ManagerDashboard({
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
             <Truck size={16} className="text-emerald-600" />
-            <span>{uz.manager.driverList} ({drivers.length})</span>
+            <span>
+              {uz.manager.driverList} ({drivers.length})
+            </span>
           </div>
           <span className="text-[11px] text-slate-400">
             Sochiq yuklash va qaytarish
@@ -271,7 +285,7 @@ export function ManagerDashboard({
           drivers.map((driver) => {
             const driverId = driver.uid || driver.id;
             const rep = dailyReports.find(
-              (r) => r.staffId === driverId && r.date === todayStr
+              (r) => r.staffId === driverId && r.date === todayStr,
             );
 
             const isClosed = rep?.status === "closed";
@@ -279,7 +293,10 @@ export function ManagerDashboard({
             const totalDelivered = Number(rep?.totalDelivered || 0);
             const totalReturned = Number(rep?.totalReturned || 0);
             const unsoldReturned = Number(rep?.unsoldTowelsReturned || 0);
-            const currentStock = Math.max(0, totalLoaded - totalDelivered - unsoldReturned);
+            const currentStock = Math.max(
+              0,
+              totalLoaded - totalDelivered - unsoldReturned,
+            );
             const warehouseLoads = Array.isArray(rep?.warehouseLoads)
               ? rep.warehouseLoads
               : [];
@@ -366,7 +383,9 @@ export function ManagerDashboard({
                 {/* Used towels collected */}
                 <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
                   <span>Yuvishga qaytarilgan (ishlatilgan):</span>
-                  <span className="font-bold text-slate-700">{totalReturned} dona</span>
+                  <span className="font-bold text-slate-700">
+                    {totalReturned} dona
+                  </span>
                 </div>
 
                 {/* Loads Timeline */}
@@ -383,7 +402,9 @@ export function ManagerDashboard({
                         >
                           <Clock size={10} className="text-slate-400" />
                           <span>{load.time}:</span>
-                          <strong className="text-emerald-700">+{load.count}</strong>
+                          <strong className="text-emerald-700">
+                            +{load.count}
+                          </strong>
                         </span>
                       ))}
                     </div>
@@ -411,7 +432,11 @@ export function ManagerDashboard({
                     }`}
                   >
                     <RotateCcw size={14} />
-                    <span>{isClosed ? "Qayta qabul qilish" : uz.manager.receiveTowels}</span>
+                    <span>
+                      {isClosed
+                        ? "Qayta qabul qilish"
+                        : uz.manager.receiveTowels}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -486,7 +511,7 @@ export function ManagerDashboard({
                   type="text"
                   value={loadNote}
                   onChange={(e) => setLoadNote(e.target.value)}
-                  placeholder="Ombordan berildi"
+                  placeholder="Sochiqlardan berildi"
                   className="w-full rounded-xl border border-slate-300 px-3 py-2 text-xs outline-none focus:border-emerald-500"
                 />
               </div>
@@ -506,7 +531,9 @@ export function ManagerDashboard({
                 >
                   <Check size={14} />
                   <span>
-                    {submittingLoad ? uz.common.loading : uz.manager.confirmGive}
+                    {submittingLoad
+                      ? uz.common.loading
+                      : uz.manager.confirmGive}
                   </span>
                 </button>
               </div>
@@ -558,7 +585,7 @@ export function ManagerDashboard({
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-base font-bold outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Sotilmagan, omborga qaytarib topshirilgan toza sochiqlar soni.
+                  Sotilmagan, qaytarib topshirilgan toza sochiqlar soni.
                 </p>
               </div>
 
@@ -590,7 +617,9 @@ export function ManagerDashboard({
                 >
                   <Check size={14} />
                   <span>
-                    {submittingReceive ? uz.common.loading : uz.manager.confirmReceive}
+                    {submittingReceive
+                      ? uz.common.loading
+                      : uz.manager.confirmReceive}
                   </span>
                 </button>
               </div>
@@ -601,4 +630,3 @@ export function ManagerDashboard({
     </div>
   );
 }
-

@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertCircle,
   Calendar,
   CheckCircle2,
+  ChevronRight,
   Clock,
   DollarSign,
   Package,
@@ -46,6 +48,75 @@ export function StaffManagementPage({
   );
 
   const todayStr = useMemo(() => getTodayDateString(), []);
+
+  // Aggregated Warehouse stats for Managers
+  const managerStats = useMemo(() => {
+    const todayReports = dailyReports.filter((r) => r.date === todayStr);
+
+    const todayLoaded = todayReports.reduce(
+      (sum, r) => sum + (Number(r.totalLoadedFromWarehouse) || 0),
+      0,
+    );
+    const todayUnsold = todayReports.reduce(
+      (sum, r) => sum + (Number(r.unsoldTowelsReturned) || 0),
+      0,
+    );
+    const todayUsedReturned = todayReports.reduce(
+      (sum, r) => sum + (Number(r.totalReturned) || 0),
+      0,
+    );
+    const todayDelivered = todayReports.reduce(
+      (sum, r) => sum + (Number(r.totalDelivered) || 0),
+      0,
+    );
+    const todayInVehicles = todayReports.reduce((sum, r) => {
+      const loaded = Number(r.totalLoadedFromWarehouse) || 0;
+      const del = Number(r.totalDelivered) || 0;
+      const uns = Number(r.unsoldTowelsReturned) || 0;
+      return sum + Math.max(0, loaded - del - uns);
+    }, 0);
+    const todayActiveDrivers = todayReports.filter(
+      (r) => (Number(r.totalLoadedFromWarehouse) || 0) > 0,
+    ).length;
+    const todayClosedReports = todayReports.filter(
+      (r) => r.status === "closed",
+    ).length;
+
+    const allLoaded = dailyReports.reduce(
+      (sum, r) => sum + (Number(r.totalLoadedFromWarehouse) || 0),
+      0,
+    );
+    const allUnsold = dailyReports.reduce(
+      (sum, r) => sum + (Number(r.unsoldTowelsReturned) || 0),
+      0,
+    );
+    const allUsedReturned = dailyReports.reduce(
+      (sum, r) => sum + (Number(r.totalReturned) || 0),
+      0,
+    );
+    const allDelivered = dailyReports.reduce(
+      (sum, r) => sum + (Number(r.totalDelivered) || 0),
+      0,
+    );
+    const totalDaysManaged = new Set(
+      dailyReports.map((r) => r.date).filter(Boolean),
+    ).size;
+
+    return {
+      todayLoaded,
+      todayUnsold,
+      todayUsedReturned,
+      todayDelivered,
+      todayInVehicles,
+      todayActiveDrivers,
+      todayClosedReports,
+      allLoaded,
+      allUnsold,
+      allUsedReturned,
+      allDelivered,
+      totalDaysManaged,
+    };
+  }, [dailyReports, todayStr]);
 
   const handleCreateStaff = async (data) => {
     await createStaffAccount(data);
@@ -244,7 +315,7 @@ export function StaffManagementPage({
                         )}
                         {isStaffManager && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                            Menejer (Omborchi)
+                            Menejer
                           </span>
                         )}
                         {isStaffDelivery && (
@@ -272,10 +343,137 @@ export function StaffManagementPage({
                 </div>
 
                 {isStaffManager ? (
-                  <div className="rounded-xl bg-purple-50/70 p-3 text-xs text-purple-900 border border-purple-100/80">
-                    <span className="font-bold">Menejer vazifasi:</span>{" "}
-                    Ombordan yetkazuvchilarga sochiq berish va kun yakunida
-                    sotilmagan sochiqlarni qabul qilish.
+                  <div className="space-y-3 pt-1">
+                    {/* Period Selector Tabs: Bugun vs Barcha davr */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wide">
+                        Sochiqlar Nazorati & Statistika
+                      </span>
+                      <div className="inline-flex rounded-xl bg-slate-100 p-0.5 text-xs font-semibold">
+                        <button
+                          type="button"
+                          onClick={() => togglePeriod(staffId)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
+                            currentPeriod === "today"
+                              ? "bg-white text-slate-900 font-bold shadow-xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
+                        >
+                          Bugun
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => togglePeriod(staffId)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] transition-all ${
+                            currentPeriod === "all"
+                              ? "bg-white text-slate-900 font-bold shadow-xs"
+                              : "text-slate-500 hover:text-slate-900"
+                          }`}
+                        >
+                          Barchasi
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Key Warehouse Metrics (3 Cards) */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {/* 1. Ombordan berildi */}
+                      <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-purple-800 font-bold">
+                          Berildi
+                        </span>
+                        <span className="text-sm font-extrabold text-purple-950 block mt-0.5 truncate">
+                          {currentPeriod === "today"
+                            ? managerStats.todayLoaded.toLocaleString()
+                            : managerStats.allLoaded.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-purple-700">
+                          dona
+                        </span>
+                      </div>
+
+                      {/* 2. Mashinalarda / Tarqatildi */}
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-emerald-800 font-bold">
+                          {currentPeriod === "today"
+                            ? "Mashinalarda"
+                            : "Tarqatildi"}
+                        </span>
+                        <span className="text-sm font-extrabold text-emerald-950 block mt-0.5 truncate">
+                          {currentPeriod === "today"
+                            ? managerStats.todayInVehicles.toLocaleString()
+                            : managerStats.allDelivered.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-emerald-700">
+                          dona
+                        </span>
+                      </div>
+
+                      {/* 3. Sotilmay qaytgan */}
+                      <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-2.5 text-center">
+                        <span className="block text-[10px] text-amber-900 font-bold">
+                          Sotilmay qaytdi
+                        </span>
+                        <span className="text-sm font-extrabold text-amber-950 block mt-0.5 truncate">
+                          {currentPeriod === "today"
+                            ? managerStats.todayUnsold.toLocaleString()
+                            : managerStats.allUnsold.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-amber-700">dona</span>
+                      </div>
+                    </div>
+
+                    {/* Operational Details Grid */}
+                    <div className="grid grid-cols-3 gap-1.5 text-center text-xs bg-slate-50 rounded-xl p-2 border border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          Yuvishga qaytgan
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {currentPeriod === "today"
+                            ? managerStats.todayUsedReturned
+                            : managerStats.allUsedReturned}{" "}
+                          ta
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {currentPeriod === "today"
+                            ? "Faol haydovchi"
+                            : "Ish kunlari"}
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {currentPeriod === "today"
+                            ? managerStats.todayActiveDrivers
+                            : managerStats.totalDaysManaged}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {currentPeriod === "today"
+                            ? "Yopilgan kassa"
+                            : "Jami qaytgan"}
+                        </span>
+                        <span className="font-bold text-slate-800">
+                          {currentPeriod === "today"
+                            ? managerStats.todayClosedReports
+                            : managerStats.allUnsold +
+                              managerStats.allUsedReturned}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick Link to open Warehouse Management */}
+                    <Link
+                      to="/ombor"
+                      className="flex items-center justify-between rounded-xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200/80 px-3 py-2 text-xs font-bold text-purple-900 transition-all active:scale-98"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Package size={15} className="text-purple-700" />
+                        <span>Ombor boshqaruv paneliga o'tish</span>
+                      </div>
+                      <ChevronRight size={15} className="text-purple-600" />
+                    </Link>
                   </div>
                 ) : (
                   <>

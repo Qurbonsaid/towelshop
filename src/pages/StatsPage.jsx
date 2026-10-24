@@ -1,12 +1,7 @@
 import React, { useMemo } from "react";
 import { AdminPushBanner } from "../components/AdminPushBanner";
 import { AdminStatsCards } from "../components/AdminStatsCards";
-import {
-  CheckCircle2,
-  Clock,
-  Package,
-  Truck,
-} from "../components/icons";
+import { CheckCircle2, Clock, Package, Truck } from "../components/icons";
 import { isDeliveryRole } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
@@ -79,16 +74,22 @@ export function StatsPage({
     );
     const isClosed = report?.status === "closed";
 
-    const totalLoadedFromWarehouse = Number(report?.totalLoadedFromWarehouse || 0);
+    const totalLoadedFromWarehouse = Number(
+      report?.totalLoadedFromWarehouse || 0,
+    );
     const warehouseLoads = Array.isArray(report?.warehouseLoads)
       ? report.warehouseLoads
       : [];
     const unsoldTowelsReturned = Number(report?.unsoldTowelsReturned || 0);
 
     // Current stock calculation
-    const currentStock = report?.currentStock !== undefined
-      ? Number(report.currentStock)
-      : Math.max(0, totalLoadedFromWarehouse - deliveredTowels - unsoldTowelsReturned);
+    const currentStock =
+      report?.currentStock !== undefined
+        ? Number(report.currentStock)
+        : Math.max(
+            0,
+            totalLoadedFromWarehouse - deliveredTowels - unsoldTowelsReturned,
+          );
 
     return {
       cashAmount,
@@ -180,7 +181,9 @@ export function StatsPage({
               </span>
             </div>
             <div>
-              <span className="text-emerald-200 block">Sartaroshlarga berildi:</span>
+              <span className="text-emerald-200 block">
+                Sartaroshlarga berildi:
+              </span>
               <span className="font-bold text-white text-sm">
                 {staffTodayStats.deliveredTowels} dona
               </span>
@@ -238,7 +241,7 @@ export function StatsPage({
                 Menejer tomonidan berilgan sochiqlar
               </h3>
               <p className="text-[11px] text-slate-500">
-                Bugun omborchi yuklab bergan sochiqlar tarixi
+                Bugun menejer yuklab bergan sochiqlar tarixi
               </p>
             </div>
           </div>
@@ -259,7 +262,9 @@ export function StatsPage({
                       <Clock size={11} />
                       {load.time}
                     </span>
-                    <span className="font-medium text-slate-700">{load.note}</span>
+                    <span className="font-medium text-slate-700">
+                      {load.note}
+                    </span>
                   </div>
                   <span className="font-bold text-emerald-700 text-sm">
                     +{load.count} dona
@@ -277,7 +282,7 @@ export function StatsPage({
               <div className="flex items-center gap-2 font-bold text-emerald-800">
                 <CheckCircle2 size={18} className="text-emerald-600" />
                 <span>
-                  Bugungi kun yakunlandi va omborchi tomonidan qabul qilindi.
+                  Bugungi kun yakunlandi va menejer tomonidan qabul qilindi.
                 </span>
               </div>
               <div className="pt-2 border-t border-emerald-200/70 text-[11px] text-emerald-900 space-y-1">
@@ -327,7 +332,9 @@ export function StatsPage({
                 >
                   <div>
                     <p className="font-bold text-slate-900">{s.barberName}</p>
-                    <p className="text-[11px] text-slate-500">{s.barbershopName}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {s.barbershopName}
+                    </p>
                     <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
                       {Number(s.quantityDelivered) > 0 && (
                         <span className="text-emerald-700 font-semibold">
@@ -474,32 +481,42 @@ export function StatsPage({
                           : "bg-amber-100 text-amber-800"
                       }`}
                     >
-                      {rep.status === "closed" ? "Topshirilgan / Yopilgan" : "Faol"}
+                      {rep.status === "closed"
+                        ? "Topshirilgan / Yopilgan"
+                        : "Faol"}
                     </span>
                   </div>
 
                   {/* Towels status */}
                   <div className="grid grid-cols-4 gap-1.5 pt-1 text-center bg-white p-2 rounded-lg border border-slate-200">
                     <div>
-                      <span className="text-[10px] text-slate-500 block">Ombordan</span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Ombordan
+                      </span>
                       <span className="font-bold text-slate-800">
                         {rep.totalLoadedFromWarehouse || 0} ta
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block">Mashinada</span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Mashinada
+                      </span>
                       <span className="font-bold text-emerald-700">
                         {rep.currentStock || 0} ta
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block">Berildi</span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Berildi
+                      </span>
                       <span className="font-bold text-slate-800">
                         {rep.totalDelivered || 0} ta
                       </span>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-500 block">Qaytdi</span>
+                      <span className="text-[10px] text-slate-500 block">
+                        Qaytdi
+                      </span>
                       <span className="font-bold text-sky-700">
                         {rep.totalReturned || 0} ta
                       </span>
@@ -509,8 +526,14 @@ export function StatsPage({
                   {/* Money status */}
                   <div className="flex items-center justify-between pt-1 text-[11px]">
                     <span className="text-slate-600">
-                      Naqd: <strong className="text-emerald-700">{(Number(rep.cashAmount) || 0).toLocaleString()} so'm</strong>
-                      {" | "}Click: <strong className="text-sky-700">{(Number(rep.cardAmount) || 0).toLocaleString()} so'm</strong>
+                      Naqd:{" "}
+                      <strong className="text-emerald-700">
+                        {(Number(rep.cashAmount) || 0).toLocaleString()} so'm
+                      </strong>
+                      {" | "}Click:{" "}
+                      <strong className="text-sky-700">
+                        {(Number(rep.cardAmount) || 0).toLocaleString()} so'm
+                      </strong>
                     </span>
                     {rep.unsoldTowelsReturned > 0 && (
                       <span className="text-amber-800 font-semibold">
