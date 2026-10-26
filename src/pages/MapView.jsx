@@ -7,18 +7,31 @@ import { listBarbers, listBarbershops } from '../services/firestoreService'
 
 const DEFAULT_CENTER = [41.311081, 69.240562] // Tashkent
 
-export function MapView() {
-  const [barbershops, setBarbershops] = useState([])
-  const [barbers, setBarbers] = useState([])
-  const [loading, setLoading] = useState(true)
+export function MapView({
+  barbershops: propBarbershops,
+  barbers: propBarbers,
+}) {
+  const hasProps = Array.isArray(propBarbershops) && Array.isArray(propBarbers)
+  const [fetchedShops, setFetchedShops] = useState([])
+  const [fetchedBarbers, setFetchedBarbers] = useState([])
+  const [loading, setLoading] = useState(!hasProps)
 
   useEffect(() => {
-    Promise.all([listBarbershops(), listBarbers()]).then(([shops, barbersList]) => {
-      setBarbershops(shops)
-      setBarbers(barbersList)
+    if (hasProps) {
       setLoading(false)
-    })
-  }, [])
+      return
+    }
+    Promise.all([listBarbershops(), listBarbers()]).then(
+      ([shops, barbersList]) => {
+        setFetchedShops(shops)
+        setFetchedBarbers(barbersList)
+        setLoading(false)
+      }
+    )
+  }, [hasProps])
+
+  const barbershops = hasProps ? propBarbershops : fetchedShops
+  const barbers = hasProps ? propBarbers : fetchedBarbers
 
   const shopsWithCoords = barbershops.filter(
     (s) =>
@@ -30,7 +43,10 @@ export function MapView() {
 
   const centerPos =
     shopsWithCoords.length > 0
-      ? [Number(shopsWithCoords[0].latitude), Number(shopsWithCoords[0].longitude)]
+      ? [
+          Number(shopsWithCoords[0].latitude),
+          Number(shopsWithCoords[0].longitude),
+        ]
       : DEFAULT_CENTER
 
   return (
@@ -47,14 +63,20 @@ export function MapView() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
           <div className="h-[62vh] min-h-[350px] w-full">
-            <MapContainer center={centerPos} className="h-full w-full" zoom={12}>
+            <MapContainer
+              center={centerPos}
+              className="h-full w-full"
+              zoom={12}
+            >
               <TileLayer
-                attribution='&copy; Google Maps'
+                attribution="&copy; Google Maps"
                 url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
               />
 
               {shopsWithCoords.map((shop) => {
-                const shopBarbers = barbers.filter((b) => b.barbershopId === shop.id)
+                const shopBarbers = barbers.filter(
+                  (b) => b.barbershopId === shop.id
+                )
                 const lat = Number(shop.latitude)
                 const lng = Number(shop.longitude)
 
@@ -62,9 +84,13 @@ export function MapView() {
                   <Marker key={shop.id} position={[lat, lng]}>
                     <Popup className="custom-popup">
                       <div className="p-1 text-slate-900 font-sans">
-                        <h4 className="font-bold text-sm text-slate-900">{shop.name}</h4>
+                        <h4 className="font-bold text-sm text-slate-900">
+                          {shop.name}
+                        </h4>
                         {shop.address && (
-                          <p className="text-xs text-slate-600 mt-0.5">{shop.address}</p>
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            {shop.address}
+                          </p>
                         )}
                         {shop.phone && (
                           <p className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
@@ -74,12 +100,15 @@ export function MapView() {
 
                         <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-1.5 text-xs">
                           <span className="text-slate-500">
-                            {uz.map.viewBarbers} <strong className="text-slate-800">{shopBarbers.length}</strong>
+                            {uz.map.viewBarbers}{' '}
+                            <strong className="text-slate-800">
+                              {shopBarbers.length}
+                            </strong>
                           </span>
                         </div>
 
                         <Link
-                          to="/staff"
+                          to={`/sartaroshxonalar/${shop.id}`}
                           className="mt-2.5 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white no-underline hover:bg-emerald-700"
                         >
                           <Package size={13} />
@@ -95,7 +124,11 @@ export function MapView() {
 
           <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
             <span>
-              Xaritada: <strong className="text-emerald-700">{shopsWithCoords.length} ta</strong> sartaroshxona
+              Xaritada:{' '}
+              <strong className="text-emerald-700">
+                {shopsWithCoords.length} ta
+              </strong>{' '}
+              sartaroshxona
             </span>
             <span className="text-slate-400 text-[11px]">
               Jami: {barbershops.length} ta
@@ -104,12 +137,12 @@ export function MapView() {
         </div>
       )}
 
-      {/* List of barbershops without coordinates if any */}
       {barbershops.length > shopsWithCoords.length && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs text-amber-800">
           <p className="font-semibold">{uz.map.noLocation}</p>
           <p className="mt-0.5 text-[11px]">
-            {barbershops.length - shopsWithCoords.length} ta sartaroshxonaga hali koordinata belgilanmagan.
+            {barbershops.length - shopsWithCoords.length} ta sartaroshxonaga
+            hali koordinata belgilanmagan.
           </p>
         </div>
       )}

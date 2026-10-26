@@ -1,11 +1,14 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AdminPushBanner } from "../components/AdminPushBanner";
 import { AdminStatsCards } from "../components/AdminStatsCards";
 import { CheckCircle2, Clock, Package, Truck } from "../components/icons";
 import { isDeliveryRole } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
-import { getTodayDateString } from "../services/firestoreService";
+import {
+  getAllTimeSalesAggregate,
+  getTodayDateString,
+} from "../services/firestoreService";
 
 export function StatsPage({
   role,
@@ -18,6 +21,18 @@ export function StatsPage({
 }) {
   const isStaff = isDeliveryRole(role);
   const todayStr = useMemo(() => getTodayDateString(), []);
+  const [serverTotals, setServerTotals] = useState(null);
+
+  useEffect(() => {
+    if (isStaff) return;
+    let active = true;
+    getAllTimeSalesAggregate().then((res) => {
+      if (active && res) setServerTotals(res);
+    });
+    return () => {
+      active = false;
+    };
+  }, [isStaff, sales.length]);
 
   useHeader(
     {
@@ -82,7 +97,6 @@ export function StatsPage({
       : [];
     const unsoldTowelsReturned = Number(report?.unsoldTowelsReturned || 0);
 
-    // Current stock calculation
     const currentStock =
       report?.currentStock !== undefined
         ? Number(report.currentStock)
@@ -109,18 +123,27 @@ export function StatsPage({
     };
   }, [isStaff, userId, sales, dailyReports, todayStr]);
 
-  // Admin Circulation Calculations (using live towelsCount from barbers)
+  // Admin Circulation Calculations (using server-side aggregate + live towelsCount from barbers)
   const circulation = useMemo(() => {
-    let totalDelivered = 0;
-    let totalReturned = 0;
+    let localDelivered = 0;
+    let localReturned = 0;
 
     sales.forEach((s) => {
-      totalDelivered += Number(s.quantityDelivered) || 0;
+      localDelivered += Number(s.quantityDelivered) || 0;
     });
 
     returns.forEach((r) => {
-      totalReturned += Number(r.returnedTowels) || 0;
+      localReturned += Number(r.returnedTowels) || 0;
     });
+
+    const totalDelivered = Math.max(
+      localDelivered,
+      Number(serverTotals?.allTimeTowels || 0),
+    );
+    const totalReturned = Math.max(
+      localReturned,
+      Number(serverTotals?.allTimeReturned || 0),
+    );
 
     const heldByClients = barbers.reduce(
       (sum, barber) =>
@@ -138,7 +161,7 @@ export function StatsPage({
       totalReturned,
       heldByClients,
     };
-  }, [sales, returns, barbers]);
+  }, [sales, returns, barbers, serverTotals]);
 
   // Staff Driver View
   if (isStaff && staffTodayStats) {
@@ -172,7 +195,6 @@ export function StatsPage({
             </div>
           </div>
 
-          {/* Quick Flow breakdown */}
           <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-500/50 text-center text-[11px]">
             <div>
               <span className="text-emerald-200 block">Ombordan olindi:</span>
@@ -230,7 +252,7 @@ export function StatsPage({
           </div>
         </div>
 
-        {/* 3. WAREHOUSE PICKUPS TIMELINE (Qachon nechta olingan) */}
+        {/* 3. WAREHOUSE PICKUPS TIMELINE */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
@@ -381,13 +403,10 @@ export function StatsPage({
   // Admin View
   return (
     <div className="space-y-4 pb-6">
-      {/* FCM Push Notification Banner */}
       <AdminPushBanner />
 
-      {/* Main Financial Stats Cards */}
       <AdminStatsCards sales={sales} barbers={barbers} />
 
-      {/* Towel Circulation Balance Card */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
@@ -436,7 +455,6 @@ export function StatsPage({
         </div>
       </div>
 
-      {/* Today's Driver Daily Reports Section for Admin */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
@@ -487,7 +505,6 @@ export function StatsPage({
                     </span>
                   </div>
 
-                  {/* Towels status */}
                   <div className="grid grid-cols-4 gap-1.5 pt-1 text-center bg-white p-2 rounded-lg border border-slate-200">
                     <div>
                       <span className="text-[10px] text-slate-500 block">
@@ -523,7 +540,6 @@ export function StatsPage({
                     </div>
                   </div>
 
-                  {/* Money status */}
                   <div className="flex items-center justify-between pt-1 text-[11px]">
                     <span className="text-slate-600">
                       Naqd:{" "}

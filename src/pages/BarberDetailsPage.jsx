@@ -67,7 +67,6 @@ export function BarberDetailsPage({
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Receive success toast if navigated back from NewSalePage
   useEffect(() => {
     if (location.state?.toast) {
       showToast(location.state.toast);
@@ -111,17 +110,30 @@ export function BarberDetailsPage({
       });
   }, [sales, barberId]);
 
-  // Computed Stats for this Barber
+  // Computed Stats for this Barber (combines embedded barber counters with recent sales)
   const stats = useMemo(() => {
-    let totalDelivered = 0;
-    let totalReturned = 0;
-    let totalSalesSum = 0;
+    let recentDelivered = 0;
+    let recentReturned = 0;
+    let recentSalesSum = 0;
 
     barberSales.forEach((s) => {
-      totalDelivered += Number(s.quantityDelivered) || 0;
-      totalReturned += Number(s.returnedTowels) || 0;
-      totalSalesSum += Number(s.totalPrice) || 0;
+      recentDelivered += Number(s.quantityDelivered) || 0;
+      recentReturned += Number(s.returnedTowels) || 0;
+      recentSalesSum += Number(s.totalPrice) || 0;
     });
+
+    const totalDelivered = Math.max(
+      recentDelivered,
+      Number(currentBarber?.totalDelivered || 0),
+    );
+    const totalReturned = Math.max(
+      recentReturned,
+      Number(currentBarber?.totalReturned || 0),
+    );
+    const totalSalesSum = Math.max(
+      recentSalesSum,
+      Number(currentBarber?.totalSalesSum || 0),
+    );
 
     const heldTowels = Number(
       currentBarber?.towelsCount !== undefined
@@ -141,7 +153,6 @@ export function BarberDetailsPage({
     };
   }, [barberSales, currentBarber]);
 
-  // Header configuration
   useHeader(
     {
       title: currentBarber ? currentBarber.name : uz.barberDetails.title,
@@ -190,7 +201,6 @@ export function BarberDetailsPage({
 
   return (
     <div className="space-y-4 pb-8">
-      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-16 left-1/2 z-50 -translate-x-1/2 rounded-2xl border border-emerald-300 bg-white px-4 py-2.5 shadow-xl animate-in slide-in-from-top-2 duration-150 flex items-center gap-2 text-xs font-bold text-emerald-800">
           <CheckCircle2 size={16} className="text-emerald-600" />
@@ -198,7 +208,6 @@ export function BarberDetailsPage({
         </div>
       )}
 
-      {/* Header Barber Quick Summary */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
         <div className="flex items-start justify-between">
           <div>
@@ -239,7 +248,6 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* Main action button: Sotish (Delivery/Return) with full width */}
         <div className="mt-4 flex items-center justify-center">
           <button
             type="button"
@@ -254,9 +262,7 @@ export function BarberDetailsPage({
         </div>
       </div>
 
-      {/* Section 2: "Statistikalar" (Stats) */}
       <div className="space-y-3">
-        {/* Main 3 Balance Cards */}
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3 text-center">
             <span className="block text-[10px] text-emerald-800 font-bold">
@@ -289,7 +295,6 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* Circulation Volumes */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs divide-y divide-slate-100 text-xs">
           <div className="flex items-center justify-between pb-2">
             <span className="text-slate-500">
@@ -317,7 +322,6 @@ export function BarberDetailsPage({
           </div>
         </div>
 
-        {/* Recent transactions for this barber */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs">
           <h4 className="text-xs font-bold text-slate-900 mb-2.5">
             {uz.barberDetails.recentTransactions} ({barberSales.length})
@@ -338,7 +342,6 @@ export function BarberDetailsPage({
                 const disc = Number(s.discount) || 0;
                 const totalCredit = (Number(s.totalPaid) || cash + card) + disc;
 
-                // Standalone payment transaction (via "To'lov qilish" button)
                 const isPaymentOnly = qtyDelivered === 0 && qtyReturned === 0;
 
                 if (isPaymentOnly) {
@@ -404,7 +407,6 @@ export function BarberDetailsPage({
                   );
                 }
 
-                // Standard delivery or return
                 return (
                   <div
                     key={s.id}
@@ -473,7 +475,6 @@ export function BarberDetailsPage({
         </div>
       </div>
 
-      {/* Edit Barber Modal (available to both admin and staff) */}
       {isEditModalOpen && (
         <BarberModal
           barber={currentBarber}

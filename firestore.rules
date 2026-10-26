@@ -3,42 +3,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
     function isAdmin() {
-      return isAuthenticated() && getUserData().role == 'admin';
-    }
-
-    function isManager() {
-      return isAuthenticated() && getUserData().role == 'manager';
-    }
-
-    function isDelivery() {
-      return isAuthenticated() && (
-        getUserData().role == 'delivery' ||
-        getUserData().role == 'staff'
-      );
+      return isAuthenticated() && getUserRole() == 'admin';
     }
 
     function isStaff() {
-      return isAuthenticated() && (
-        isDelivery() ||
-        isManager() ||
-        isAdmin()
-      );
+      return isAuthenticated() &&
+        getUserRole() in ['admin', 'manager', 'delivery', 'staff'];
     }
 
     // 1. Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      // Users can create/update their own document (e.g. register, save FCM tokens), Admin can do everything
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
@@ -54,16 +38,14 @@ service cloud.firestore {
     // 3. Barbers collection
     match /barbers/{barberId} {
       allow read: if isAuthenticated();
-      // Admin and delivery/staff can create and update barbers and balance
       allow create, update: if isStaff();
       allow delete: if isAdmin();
     }
 
-    // 4. Sales collection
+    // 4. Sales collection (now includes unified debt/payment audit fields)
     match /sales/{saleId} {
       allow read: if isAuthenticated();
       allow create, update: if isStaff();
-      // Only Admin can delete sales records
       allow delete: if isAdmin();
     }
 
@@ -74,7 +56,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // 6. Logs collection
+    // 6. Legacy Logs collection (kept for backwards compatibility)
     match /logs/{logId} {
       allow read: if isAuthenticated();
       allow create, update: if isStaff();

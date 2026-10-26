@@ -1,6 +1,11 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 import { getMessaging, isSupported } from 'firebase/messaging'
 
 export const firebaseConfig = {
@@ -10,12 +15,27 @@ export const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  messagingVapidKey: import.meta.env.VITE_FIREBASE_MESSAGING_VAPID_KEY,
+  messagingVapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY || import.meta.env.VITE_FIREBASE_MESSAGING_VAPID_KEY,
 }
 
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+// Enable IndexedDB persistent local caching across tabs so unchanged documents
+// are served from local cache on reload instead of consuming Firestore read quota.
+function initDb() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    })
+  } catch {
+    return getFirestore(app)
+  }
+}
+
+export const db = initDb()
 
 let messagingInstance = null
 
@@ -28,7 +48,7 @@ export async function getFirebaseMessaging() {
     }
     return messagingInstance
   } catch (err) {
-    console.warn('Firebase Messaging qo\'llab-quvvatlanmadi:', err)
+    console.warn("Firebase Messaging qo'llab-quvvatlanmadi:", err)
     return null
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -27,8 +27,6 @@ import {
   subscribeBarbers,
   subscribeBarbershops,
   subscribeDailyReports,
-  subscribeLogs,
-  subscribeReturns,
   subscribeSales,
   subscribeUsers,
 } from "./services/firestoreService";
@@ -54,10 +52,15 @@ function App() {
   const [barbershops, setBarbershops] = useState([]);
   const [barbers, setBarbers] = useState([]);
   const [sales, setSales] = useState([]);
-  const [returns, setReturns] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
-  const [logs, setLogs] = useState([]);
   const [users, setUsers] = useState([]);
+
+  // Derive returns directly in memory from sales instead of opening a second
+  // duplicate Firestore listener on the sales collection.
+  const returns = useMemo(
+    () => sales.filter((item) => Number(item.returnedTowels) > 0),
+    [sales]
+  );
 
   useEffect(() => {
     let unsubscribeDoc = null;
@@ -107,32 +110,35 @@ function App() {
     };
   }, []);
 
-  // Subscribe to real-time collections when logged in
+  // Wait until both user and role are resolved before starting collection listeners.
+  // Keyed on userId + hasRole so listeners are NOT torn down and re-created when role loads.
+  const userId = user?.uid || null;
+  const hasRole = Boolean(role);
+
   useEffect(() => {
-    if (!user) return;
+    if (!userId || !hasRole) return;
 
     const unsubShops = subscribeBarbershops(setBarbershops);
     const unsubBarbers = subscribeBarbers(setBarbers);
     const unsubSales = subscribeSales(setSales);
-    const unsubReturns = subscribeReturns(setReturns);
     const unsubDailyReports = subscribeDailyReports(setDailyReports);
-    const unsubLogs = subscribeLogs(setLogs);
-
-    let unsubUsers = () => {};
-    if (role === ROLES.ADMIN || role === ROLES.MANAGER) {
-      unsubUsers = subscribeUsers(setUsers);
-    }
 
     return () => {
       unsubShops();
       unsubBarbers();
       unsubSales();
-      unsubReturns();
       unsubDailyReports();
-      unsubLogs();
-      unsubUsers();
     };
-  }, [user, role]);
+  }, [userId, hasRole]);
+
+  // Separate listener for staff/users collection (Admin & Manager only)
+  const canReadStaffList = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  useEffect(() => {
+    if (!userId || !canReadStaffList) return;
+    const unsubUsers = subscribeUsers(setUsers);
+    return () => unsubUsers();
+  }, [userId, canReadStaffList]);
+
   const handleLogin = async (phone, password) => {
     const result = await loginWithPhone(phone, password);
     setUser(result.user);
@@ -358,7 +364,6 @@ function App() {
                   role={role}
                   userId={user.uid}
                   userProfile={userProfile}
-                  logs={logs}
                   sales={sales}
                   barbers={barbers}
                   barbershops={barbershops}
@@ -374,7 +379,6 @@ function App() {
                   role={role}
                   userId={user.uid}
                   userProfile={userProfile}
-                  logs={logs}
                   sales={sales}
                   barbers={barbers}
                   barbershops={barbershops}
@@ -383,7 +387,7 @@ function App() {
             }
           />
 
-          {/* 4. Staff Management Route (Admin Only) */}
+          {/* 5. Staff Management Route (Admin Only) */}
           <Route
             path="/xodimlar"
             element={
@@ -406,8 +410,11 @@ function App() {
             }
           />
 
-          {/* Map view fallback */}
-          <Route path="/xarita" element={<MapView />} />
+          {/* Map view using shared state props (zero extra getDocs calls) */}
+          <Route
+            path="/xarita"
+            element={<MapView barbershops={barbershops} barbers={barbers} />}
+          />
 
           {/* Legacy redirects */}
           <Route

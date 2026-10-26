@@ -30,11 +30,9 @@ export function NewSalePage({
   const navigate = useNavigate();
   const isAdmin = role === ROLES.ADMIN;
 
-  // Selected shop & barber (from route params or selector dropdowns)
   const [selectedShopId, setSelectedShopId] = useState(paramShopId || "");
   const [selectedBarberId, setSelectedBarberId] = useState(paramBarberId || "");
 
-  // Form inputs
   const [quantityDelivered, setQuantityDelivered] = useState("");
   const [returnedTowels, setReturnedTowels] = useState("");
   const [cashAmount, setCashAmount] = useState("");
@@ -45,7 +43,6 @@ export function NewSalePage({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Resolve current barber and current barbershop
   const currentBarber = useMemo(() => {
     return barbers.find((b) => b.id === selectedBarberId) || null;
   }, [barbers, selectedBarberId]);
@@ -62,19 +59,16 @@ export function NewSalePage({
     return null;
   }, [barbershops, selectedShopId, currentBarber]);
 
-  // Barbers filtered by selected barbershop for dropdown mode
   const shopBarbers = useMemo(() => {
     if (!selectedShopId) return [];
     return barbers.filter((b) => b.barbershopId === selectedShopId);
   }, [barbers, selectedShopId]);
 
-  // Handle changing barbershop in dropdown mode
   const handleShopChange = (newShopId) => {
     setSelectedShopId(newShopId);
     setSelectedBarberId("");
   };
 
-  // Header configuration
   const backTarget = useMemo(() => {
     if (paramShopId && paramBarberId) {
       return `/sartaroshxonalar/${paramShopId}/barber/${paramBarberId}`;
@@ -97,7 +91,6 @@ export function NewSalePage({
     [currentBarber, currentShop, backTarget]
   );
 
-  // Live calculation metrics
   const delivNum = Math.max(0, Number(quantityDelivered) || 0);
   const retNum = Math.max(0, Number(returnedTowels) || 0);
   const cashNum = Math.max(0, Number(cashAmount) || 0);
@@ -127,7 +120,6 @@ export function NewSalePage({
     Boolean(currentBarber) &&
     (delivNum > 0 || retNum > 0 || totalCredit > 0);
 
-  // Quick increment helpers
   const addDelivery = (qty) => {
     setQuantityDelivered((prev) => String((Number(prev) || 0) + qty));
   };
@@ -141,7 +133,6 @@ export function NewSalePage({
     setCardAmount((prev) => String((Number(prev) || 0) + amount));
   };
 
-  // Form submission
   const handleSubmit = async (e) => {
     e?.preventDefault();
     if (!currentBarber) {
@@ -182,7 +173,7 @@ export function NewSalePage({
         note: note.trim(),
       });
 
-      // Non-blocking push notification to Admins
+      // Dispatch a single consolidated push notification to Admins
       if (!isAdmin) {
         if (delivNum > 0 && retNum > 0) {
           notifyAdminSafe(
@@ -210,9 +201,7 @@ export function NewSalePage({
             uz.notifications.titles.return,
             uz.notifications.pushReturn(staffName, barberName, retNum)
           );
-        }
-
-        if (totalCredit > 0) {
+        } else if (totalCredit > 0) {
           notifyAdminSafe(
             uz.notifications.titles.payment,
             uz.notifications.pushPayment(
@@ -227,7 +216,6 @@ export function NewSalePage({
         }
       }
 
-      // Navigate back with success toast
       if (paramShopId && paramBarberId) {
         navigate(
           `/sartaroshxonalar/${paramShopId}/barber/${paramBarberId}`,
@@ -244,7 +232,9 @@ export function NewSalePage({
       }
     } catch (err) {
       console.error("Sale submit error:", err);
-      setErrorMessage(uz.common.error || "Xatolik yuz berdi. Qayta urinib ko'ring.");
+      setErrorMessage(
+        uz.common.error || "Xatolik yuz berdi. Qayta urinib ko'ring."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -256,9 +246,7 @@ export function NewSalePage({
 
   return (
     <div className="relative min-h-[calc(100vh-65px)] flex flex-col justify-between">
-      {/* Scrollable form content area with generous bottom padding so inputs never collide with fixed bottom buttons */}
       <form onSubmit={handleSubmit} className="space-y-4 pb-36">
-        {/* Error notification banner if any */}
         {errorMessage && (
           <div className="flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-xs font-semibold text-red-800 animate-in fade-in duration-150">
             <AlertCircle size={18} className="text-red-600 shrink-0" />
@@ -266,14 +254,12 @@ export function NewSalePage({
           </div>
         )}
 
-        {/* 1. Barbershop & Barber Selector (when not opened directly from a specific barber's page) */}
         {(!paramShopId || !paramBarberId) && (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Sartaroshxona va Sartaroshni tanlang
             </h3>
 
-            {/* Shop select */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Sartaroshxona *
@@ -292,7 +278,6 @@ export function NewSalePage({
               </select>
             </div>
 
-            {/* Barber select */}
             {selectedShopId && (
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -321,7 +306,6 @@ export function NewSalePage({
           </div>
         )}
 
-        {/* 2. Barber Info Card */}
         {currentBarber ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -347,7 +331,6 @@ export function NewSalePage({
               </span>
             </div>
 
-            {/* Quick stats grid */}
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
               <div className="rounded-xl bg-slate-50 p-2 border border-slate-100">
                 <p className="text-[10px] font-medium text-slate-500">Bor sochiq</p>
@@ -389,14 +372,12 @@ export function NewSalePage({
           </div>
         )}
 
-        {/* 3. Section: Sochiqlar harakati (Towels Delivery & Return) */}
         {currentBarber && (
           <div className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
               Sochiqlar harakati
             </h3>
 
-            {/* 3A. Toza sochiq berish */}
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -429,7 +410,6 @@ export function NewSalePage({
                 </span>
               </div>
 
-              {/* Quick increment pills */}
               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                 <span className="text-[10px] text-slate-500 font-semibold mr-1">Tezkor:</span>
                 {[5, 10, 20, 30, 50].map((num) => (
@@ -461,7 +441,6 @@ export function NewSalePage({
               )}
             </div>
 
-            {/* 3B. Qaytarilgan sochiqni qabul qilish */}
             <div className="rounded-2xl border border-sky-200 bg-sky-50/50 p-4 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -494,7 +473,6 @@ export function NewSalePage({
                 </span>
               </div>
 
-              {/* Quick increment pills */}
               <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
                 <span className="text-[10px] text-slate-500 font-semibold mr-1">Tezkor:</span>
                 {[5, 10, 20, 30, 50].map((num) => (
@@ -531,7 +509,6 @@ export function NewSalePage({
               )}
             </div>
 
-            {/* 4. Section: To'lov qabul qilish (Payment collection) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3.5">
               <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-100 text-slate-800">
@@ -547,7 +524,6 @@ export function NewSalePage({
                 </div>
               </div>
 
-              {/* Naqd pul */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Naqd pul (so'm)
@@ -567,7 +543,6 @@ export function NewSalePage({
                     {uz.common.sum}
                   </span>
                 </div>
-                {/* Cash shortcuts */}
                 <div className="flex items-center gap-1.5 pt-1.5 flex-wrap">
                   {[20000, 50000, 100000, 200000].map((amt) => (
                     <button
@@ -576,7 +551,7 @@ export function NewSalePage({
                       onClick={() => addCash(amt)}
                       className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
                     >
-                      +{(amt / 1000)}k
+                      +{amt / 1000}k
                     </button>
                   ))}
                   {cashNum > 0 && (
@@ -591,7 +566,6 @@ export function NewSalePage({
                 </div>
               </div>
 
-              {/* Click / Karta */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Click / Karta (so'm)
@@ -619,7 +593,7 @@ export function NewSalePage({
                       onClick={() => addCard(amt)}
                       className="rounded-lg bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-200 active:scale-95 transition-all"
                     >
-                      +{(amt / 1000)}k
+                      +{amt / 1000}k
                     </button>
                   ))}
                   {cardNum > 0 && (
@@ -634,7 +608,6 @@ export function NewSalePage({
                 </div>
               </div>
 
-              {/* Chegirma */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Chegirma (so'm)
@@ -656,7 +629,6 @@ export function NewSalePage({
                 </div>
               </div>
 
-              {/* Live Payment Summary Sub-box */}
               {totalCredit > 0 && (
                 <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs space-y-1.5 animate-in fade-in duration-150">
                   <div className="flex justify-between text-slate-600">
@@ -681,7 +653,6 @@ export function NewSalePage({
               )}
             </div>
 
-            {/* 5. Section: Izoh (Notes) */}
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-1.5">
               <label className="block text-xs font-bold text-slate-800">
                 {uz.barberDetails.noteLabel}
@@ -695,7 +666,6 @@ export function NewSalePage({
               />
             </div>
 
-            {/* 6. Section: Live Hisob-kitob Natijasi (Calculation Preview) */}
             {(delivNum > 0 || retNum > 0 || totalCredit > 0) && (
               <div className="rounded-2xl border border-emerald-300 bg-gradient-to-br from-emerald-50 to-teal-50/70 p-4 shadow-xs text-xs space-y-2 animate-in fade-in duration-150">
                 <div className="flex items-center justify-between border-b border-emerald-200/80 pb-2">
@@ -741,8 +711,8 @@ export function NewSalePage({
                       netBalance > 0
                         ? "text-red-600"
                         : netBalance < 0
-                        ? "text-emerald-700"
-                        : "text-slate-700"
+                          ? "text-emerald-700"
+                          : "text-slate-700"
                     }
                   >
                     {netBalance > 0 && `Qarz: ${netBalance.toLocaleString()} ${uz.common.sum}`}
@@ -756,12 +726,6 @@ export function NewSalePage({
         )}
       </form>
 
-      {/* 
-        ========================================================================
-        CRITICAL REQUIREMENT: FIXED POSITION BOTTOM ACTION BUTTONS
-        Stays permanently fixed at the bottom of the screen regardless of scroll position!
-        ========================================================================
-      */}
       <div className="fixed bottom-0 left-0 right-0 z-40 mx-auto max-w-lg border-t border-slate-200/90 bg-white/95 px-4 py-3 backdrop-blur-md shadow-2xl">
         <div className="grid grid-cols-2 gap-3">
           <button

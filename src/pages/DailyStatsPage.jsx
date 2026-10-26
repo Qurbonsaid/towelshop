@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -15,22 +15,13 @@ import {
 } from "../components/icons";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
-import {
-  cleanupAllTwoHourMatchedLogs,
-  getTodayDateString,
-} from "../services/firestoreService";
+import { getTodayDateString } from "../services/firestoreService";
 
 export function DailyStatsPage({
-  logs = [],
   sales = [],
   barbers = [],
   _barbershops = [],
 }) {
-  // On mount, cleanup matched 2-hour logs and any 0->0 false debt logs from Firestore
-  useEffect(() => {
-    cleanupAllTwoHourMatchedLogs();
-  }, []);
-
   // Date filters: 'today' | 'yesterday' | 'week' | 'all' | 'custom'
   const [filterMode, setFilterMode] = useState("today");
   const [customDate, setCustomDate] = useState(getTodayDateString());
@@ -87,94 +78,110 @@ export function DailyStatsPage({
     });
   }, [sales, filterMode, todayStr, yesterdayStr, weekAgoStr, customDate]);
 
-  // Barber map for debt lookup
+  // Barber map for fallback debt lookup on legacy sale records
   const barberMap = useMemo(() => {
     const map = new Map();
     barbers.forEach((b) => map.set(b.id, b));
     return map;
   }, [barbers]);
 
-  // Merge logs collection with existing sales so historical records are never missing
+  // Build unified audit records directly from sales in memory (zero extra Firestore reads)
   const unifiedLogs = useMemo(() => {
-    const logSaleIds = new Set(logs.map((l) => l.saleId).filter(Boolean));
-    const list = [...logs];
+    const list = sales.map((s) => {
+      const cash = Number(s.cashAmount) || 0;
+      const card = Number(s.cardAmount) || 0;
+      const disc = Number(s.discount) || 0;
+      const totalPaid = cash + card;
+      const totalCredit = totalPaid + disc;
+      const charged = Number(s.chargedAmount ?? s.totalPrice) || 0;
+      const sDate =
+        s.date ||
+        (s.createdAt
+          ? getTodayDateString(
+              s.createdAt.toDate ? s.createdAt.toDate() : s.createdAt,
+            )
+          : todayStr);
 
-    // For any sale that does not yet have a matching log document in logs collection
-    sales.forEach((s) => {
-      if (s.id && !logSaleIds.has(s.id)) {
-        const cash = Number(s.cashAmount) || 0;
-        const card = Number(s.cardAmount) || 0;
-        const disc = Number(s.discount) || 0;
-        const totalPaid = cash + card;
-        const totalCredit = totalPaid + disc;
-        const charged = Number(s.totalPrice) || 0;
-        const sDate =
-          s.date ||
-          (s.createdAt
-            ? getTodayDateString(
-                s.createdAt.toDate ? s.createdAt.toDate() : s.createdAt,
-              )
-            : todayStr);
-
-        const barber = barberMap.get(s.barberId);
-        const bDebt = Number(barber?.debt) || 0;
-
-        // Debt incurred: when charged > totalCredit
-        const isNewDebt = charged > totalCredit;
-        const newDebtAmount = isNewDebt ? charged - totalCredit : 0;
-
-        // Debt payment: ONLY when paying towards debt (delivered 0 towels or paying over charged amount)
-        const isDebtPayment =
-          (Number(s.quantityDelivered) === 0 && totalCredit > 0) ||
-          totalCredit > charged;
-        const debtPaidAmount = isDebtPayment
-          ? Number(s.quantityDelivered) === 0
-            ? totalCredit
-            : totalCredit - charged
-          : 0;
-
-        const oldDebt = isDebtPayment
-          ? bDebt > 0
-            ? bDebt + debtPaidAmount
-            : debtPaidAmount
-          : bDebt;
-        const newDebt = isNewDebt
-          ? bDebt + newDebtAmount
-          : isDebtPayment
-            ? Math.max(0, oldDebt - debtPaidAmount)
-            : bDebt;
-
-        list.push({
-          id: `sale_${s.id}`,
+      // If sale already contains embedded audit fields (new unified schema), use them directly
+      if (s.oldDebt !== undefined || s.newDebt !== undefined) {
+        return {
+          ...s,
+          id: s.id,
           saleId: s.id,
-          barberId: s.barberId,
-          barberName: s.barberName || "",
-          barbershopId: s.barbershopId,
-          barbershopName: s.barbershopName || "",
-          staffId: s.staffId,
-          staffName: s.staffName || "Xodim",
           cashAmount: cash,
           cardAmount: card,
           discount: disc,
           totalPaid,
           totalCredit,
           chargedAmount: charged,
-          oldDebt,
-          newDebt,
-          isDebtPayment,
-          debtPaidAmount,
-          isNewDebt,
-          newDebtAmount,
+          oldDebt: Number(s.oldDebt) || 0,
+          newDebt: Number(s.newDebt) || 0,
+          isDebtPayment: Boolean(s.isDebtPayment),
+          debtPaidAmount: Number(s.debtPaidAmount) || 0,
+          isNewDebt: Boolean(s.isNewDebt),
+          newDebtAmount: Number(s.newDebtAmount) || 0,
           quantityDelivered: Number(s.quantityDelivered) || 0,
           returnedTowels: Number(s.returnedTowels) || 0,
-          note: s.note || "",
           date: sDate,
-          createdAt: s.createdAt,
-        });
+        };
       }
+
+      // Fallback calculation for legacy sales created before unified schema
+      const barber = barberMap.get(s.barberId);
+      const bDebt = Number(barber?.debt) || 0;
+
+      const isNewDebt = charged > totalCredit;
+      const newDebtAmount = isNewDebt ? charged - totalCredit : 0;
+
+      const isDebtPayment =
+        (Number(s.quantityDelivered) === 0 && totalCredit > 0) ||
+        totalCredit > charged;
+      const debtPaidAmount = isDebtPayment
+        ? Number(s.quantityDelivered) === 0
+          ? totalCredit
+          : totalCredit - charged
+        : 0;
+
+      const oldDebt = isDebtPayment
+        ? bDebt > 0
+          ? bDebt + debtPaidAmount
+          : debtPaidAmount
+        : bDebt;
+      const newDebt = isNewDebt
+        ? bDebt + newDebtAmount
+        : isDebtPayment
+          ? Math.max(0, oldDebt - debtPaidAmount)
+          : bDebt;
+
+      return {
+        id: s.id,
+        saleId: s.id,
+        barberId: s.barberId,
+        barberName: s.barberName || "",
+        barbershopId: s.barbershopId,
+        barbershopName: s.barbershopName || "",
+        staffId: s.staffId,
+        staffName: s.staffName || "Xodim",
+        cashAmount: cash,
+        cardAmount: card,
+        discount: disc,
+        totalPaid,
+        totalCredit,
+        chargedAmount: charged,
+        oldDebt,
+        newDebt,
+        isDebtPayment,
+        debtPaidAmount,
+        isNewDebt,
+        newDebtAmount,
+        quantityDelivered: Number(s.quantityDelivered) || 0,
+        returnedTowels: Number(s.returnedTowels) || 0,
+        note: s.note || "",
+        date: sDate,
+        createdAt: s.createdAt,
+      };
     });
 
-    // Sort by createdAt descending
     return list.sort((a, b) => {
       const timeA = a.createdAt?.toMillis
         ? a.createdAt.toMillis()
@@ -192,12 +199,11 @@ export function DailyStatsPage({
             : 0;
       return timeB - timeA;
     });
-  }, [logs, sales, todayStr, barberMap]);
+  }, [sales, todayStr, barberMap]);
 
-  // 2-Hour Matching Rule:
-  // Compare when a barber incurred a debt and when they paid that debt.
-  // If the amounts match and the time difference is less than 2 hours:
-  // Exclude both from "Yangi qarzdorlar" and "Qarzini to'laganlar".
+  // 2-Hour Matching Rule (computed purely in memory without extra database reads/deletes):
+  // If a barber incurred a debt and paid the same amount within 2 hours,
+  // exclude both from "Yangi qarzdorlar" and "Qarzini to'laganlar".
   const { newDebtorsList, debtPayersList, matchedCancelledCount } =
     useMemo(() => {
       const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
@@ -225,17 +231,13 @@ export function DailyStatsPage({
         const newDebt = Number(item.newDebt) || 0;
         const paid = Number(item.debtPaidAmount) || 0;
 
-        // Exclude cash sales that had 0 debt before and 0 debt after (like screenshot bug)
         if (oldDebt === 0 && newDebt === 0) return false;
-
-        // Genuine debt payment if prior debt was > 0 and debt decreased or payment was made towards debt
         if (oldDebt > 0 && (newDebt < oldDebt || paid > 0)) return true;
         if (item.isDebtPayment && oldDebt > 0 && paid > 0) return true;
 
         return false;
       };
 
-      // Build candidate lists
       const debtCandidates = [];
       const paymentCandidates = [];
 
@@ -276,7 +278,6 @@ export function DailyStatsPage({
       const cancelledIds = new Set();
       let matchCount = 0;
 
-      // Match debt and payment pairs within 2 hours
       debtCandidates.forEach((debt) => {
         if (cancelledIds.has(debt.id)) return;
 
@@ -305,7 +306,6 @@ export function DailyStatsPage({
         }
       });
 
-      // Date filter helper
       const dateFilter = (item) => {
         const itemDate =
           item.date ||
@@ -386,7 +386,6 @@ export function DailyStatsPage({
   }, [unifiedLogs, filterMode, todayStr, yesterdayStr, weekAgoStr, customDate]);
 
   // Financial aggregates for the selected date range
-  // Kassa (Cash + Click) is calculated from all actual sales on that date
   const totals = useMemo(() => {
     let cash = 0;
     let card = 0;
@@ -425,7 +424,6 @@ export function DailyStatsPage({
     };
   }, [filteredSales, newDebtorsList, debtPayersList]);
 
-  // Format timestamp helper
   const formatTime = (ts) => {
     if (!ts) return "";
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -529,12 +527,7 @@ export function DailyStatsPage({
         </div>
       </div>
 
-      {/* 
-        ========================================================================
-        1. JAMI OLINGAN PUL (NAQD + CLICK)
-        Main Financial Summary Dashboard Card
-        ========================================================================
-      */}
+      {/* 1. JAMI OLINGAN PUL (NAQD + CLICK) */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -556,7 +549,6 @@ export function DailyStatsPage({
           </span>
         </div>
 
-        {/* Big Total Collected Banner */}
         <div className="rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-4 text-white shadow-sm">
           <p className="text-xs font-semibold text-emerald-100">
             Jami qabul qilingan tushum:
@@ -566,9 +558,7 @@ export function DailyStatsPage({
           </p>
         </div>
 
-        {/* Breakdown: Naqd vs Click/Karta vs Chegirma */}
         <div className="grid grid-cols-2 gap-2.5">
-          {/* Naqd pul */}
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-emerald-900">
@@ -586,7 +576,6 @@ export function DailyStatsPage({
             </p>
           </div>
 
-          {/* Click / Karta */}
           <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-sky-900">
@@ -605,7 +594,6 @@ export function DailyStatsPage({
           </div>
         </div>
 
-        {/* Optional Discount Note */}
         {totals.discount > 0 && (
           <div className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 border border-amber-200">
             <span>Berilgan jami chegirmalar:</span>
@@ -649,13 +637,8 @@ export function DailyStatsPage({
         </div>
       )}
 
-      {/* 
-        ========================================================================
-        2. ACCORDION 1: YANGI QARZDORLAR (New Debts Incurred)
-        ========================================================================
-      */}
+      {/* 2. ACCORDION 1: YANGI QARZDORLAR */}
       <div className="rounded-2xl border border-red-200 bg-white shadow-xs overflow-hidden transition-all">
-        {/* Accordion Header */}
         <button
           type="button"
           onClick={() => setIsNewDebtorsOpen((prev) => !prev)}
@@ -690,7 +673,6 @@ export function DailyStatsPage({
           </div>
         </button>
 
-        {/* Accordion Body */}
         {isNewDebtorsOpen && (
           <div className="p-3.5 space-y-2.5 border-t border-red-100 animate-in fade-in duration-150">
             {newDebtorsList.length === 0 ? (
@@ -750,7 +732,6 @@ export function DailyStatsPage({
                         </div>
                       </div>
 
-                      {/* New debt amount badge */}
                       <div className="text-right shrink-0">
                         <p className="text-xs font-bold text-red-600 uppercase tracking-wide">
                           Yangi qarz
@@ -761,7 +742,6 @@ export function DailyStatsPage({
                       </div>
                     </div>
 
-                    {/* Movement & balance dynamics */}
                     <div className="rounded-lg bg-white p-2.5 border border-red-100/80 text-xs space-y-1">
                       {Number(item.quantityDelivered) > 0 && (
                         <div className="flex justify-between text-slate-600">
@@ -810,7 +790,6 @@ export function DailyStatsPage({
                       </p>
                     )}
 
-                    {/* View barber profile link */}
                     {item.barbershopId && item.barberId && (
                       <div className="pt-0.5 text-right">
                         <Link
@@ -830,13 +809,8 @@ export function DailyStatsPage({
         )}
       </div>
 
-      {/* 
-        ========================================================================
-        3. ACCORDION 2: QARZINI TO'LAGANLAR (Debt Payers)
-        ========================================================================
-      */}
+      {/* 3. ACCORDION 2: QARZINI TO'LAGANLAR */}
       <div className="rounded-2xl border border-emerald-200 bg-white shadow-xs overflow-hidden transition-all">
-        {/* Accordion Header */}
         <button
           type="button"
           onClick={() => setIsDebtPayersOpen((prev) => !prev)}
@@ -871,7 +845,6 @@ export function DailyStatsPage({
           </div>
         </button>
 
-        {/* Accordion Body */}
         {isDebtPayersOpen && (
           <div className="p-3.5 space-y-2.5 border-t border-emerald-100 animate-in fade-in duration-150">
             {debtPayersList.length === 0 ? (
@@ -921,7 +894,6 @@ export function DailyStatsPage({
                         </div>
                       </div>
 
-                      {/* Total paid badge */}
                       <div className="text-right shrink-0">
                         <p className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
                           To'landi
@@ -932,7 +904,6 @@ export function DailyStatsPage({
                       </div>
                     </div>
 
-                    {/* Payment breakdown pills */}
                     <div className="flex items-center gap-2 text-[11px] flex-wrap">
                       {Number(item.cashAmount) > 0 && (
                         <span className="rounded-md bg-emerald-100 px-2 py-0.5 font-bold text-emerald-900">
@@ -952,7 +923,6 @@ export function DailyStatsPage({
                       )}
                     </div>
 
-                    {/* Balance dynamics */}
                     <div className="rounded-lg bg-white p-2.5 border border-emerald-100/80 text-xs flex items-center justify-between font-bold">
                       <span className="text-slate-600">Qarz holati:</span>
                       {Number(item.newDebt) === 0 &&
@@ -982,7 +952,6 @@ export function DailyStatsPage({
                       </p>
                     )}
 
-                    {/* View barber profile link */}
                     {item.barbershopId && item.barberId && (
                       <div className="pt-0.5 text-right">
                         <Link
@@ -1002,11 +971,7 @@ export function DailyStatsPage({
         )}
       </div>
 
-      {/* 
-        ========================================================================
-        4. ACCORDION 3: BARCHA AMALLAR XRONOLOGIYASI
-        ========================================================================
-      */}
+      {/* 4. ACCORDION 3: BARCHA AMALLAR XRONOLOGIYASI */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden transition-all">
         <button
           type="button"

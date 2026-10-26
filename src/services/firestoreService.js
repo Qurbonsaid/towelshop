@@ -1,20 +1,28 @@
 import {
   addDoc,
   collection,
+  count,
   deleteDoc,
   doc,
+  getAggregateFromServer,
   getDocs,
+  limit,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   serverTimestamp,
+  sum,
   updateDoc,
   where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import { COLLECTIONS, CONTRACT_TYPES } from "../constants/models";
+
+// Default real-time listener window sizes to prevent unbounded full-history reads
+const DEFAULT_SALES_LIMIT = 300;
+const DEFAULT_REPORTS_LIMIT = 90;
 
 // ========================
 // DATE UTILS
@@ -107,14 +115,12 @@ export async function deleteBarbershop(id) {
 }
 
 export async function deleteBarbershopCascade(barbershopId) {
-  // 1. Get all child barbers
   const barbersQuery = query(
     collection(db, COLLECTIONS.BARBERS),
     where("barbershopId", "==", barbershopId)
   );
   const barbersSnapshot = await getDocs(barbersQuery);
 
-  // 2. Get all child sales
   const salesQuery = query(
     collection(db, COLLECTIONS.SALES),
     where("barbershopId", "==", barbershopId)
@@ -136,16 +142,21 @@ export async function deleteBarbershopCascade(barbershopId) {
 // BARBERS
 // ========================
 
+function normalizeBarberDoc(docItem) {
+  const data = docItem.data();
+  return {
+    id: docItem.id,
+    ...data,
+    towelsCount: Number(data.towelsCount ?? data.initialTowels ?? 0),
+    debt: Number(data.debt || 0),
+    overpaid: Number(data.overpaid || 0),
+  };
+}
+
 export async function listBarbers() {
   const q = query(collection(db, COLLECTIONS.BARBERS), orderBy("name", "asc"));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((docItem) => ({
-    id: docItem.id,
-    ...docItem.data(),
-    towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
-    debt: Number(docItem.data().debt || 0),
-    overpaid: Number(docItem.data().overpaid || 0),
-  }));
+  return snapshot.docs.map(normalizeBarberDoc);
 }
 
 export function subscribeBarbers(callback) {
@@ -153,14 +164,7 @@ export function subscribeBarbers(callback) {
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-        towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
-        debt: Number(docItem.data().debt || 0),
-        overpaid: Number(docItem.data().overpaid || 0),
-      }));
-      callback(items);
+      callback(snapshot.docs.map(normalizeBarberDoc));
     },
     (err) => console.error("Barbers subscribe error:", err)
   );
@@ -172,13 +176,7 @@ export async function listBarbersByBarbershop(barbershopId) {
     where("barbershopId", "==", barbershopId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((docItem) => ({
-    id: docItem.id,
-    ...docItem.data(),
-    towelsCount: Number(docItem.data().towelsCount ?? docItem.data().initialTowels ?? 0),
-    debt: Number(docItem.data().debt || 0),
-    overpaid: Number(docItem.data().overpaid || 0),
-  }));
+  return snapshot.docs.map(normalizeBarberDoc);
 }
 
 export async function createBarber({
@@ -192,7 +190,8 @@ export async function createBarber({
   overpaid = 0,
   initialTowels = 0,
 }) {
-  const count = Number(towelsCount !== undefined ? towelsCount : initialTowels) || 0;
+  const countVal =
+    Number(towelsCount !== undefined ? towelsCount : initialTowels) || 0;
   const initDebt = Number(debt) || 0;
   const initOverpaid = Number(overpaid) || 0;
 
@@ -202,9 +201,12 @@ export async function createBarber({
     phone: phone.trim(),
     contractType,
     pricePerTowel: Number(pricePerTowel) || 3000,
-    towelsCount: count,
+    towelsCount: countVal,
     debt: initDebt,
     overpaid: initOverpaid,
+    totalDelivered: countVal,
+    totalReturned: 0,
+    totalSalesSum: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -219,8 +221,10 @@ export async function updateBarber(id, data) {
 
   if (data.name !== undefined) updateData.name = data.name.trim();
   if (data.phone !== undefined) updateData.phone = data.phone.trim();
-  if (data.barbershopId !== undefined) updateData.barbershopId = data.barbershopId;
-  if (data.contractType !== undefined) updateData.contractType = data.contractType;
+  if (data.barbershopId !== undefined)
+    updateData.barbershopId = data.barbershopId;
+  if (data.contractType !== undefined)
+    updateData.contractType = data.contractType;
   if (data.pricePerTowel !== undefined)
     updateData.pricePerTowel = Number(data.pricePerTowel) || 0;
   if (data.towelsCount !== undefined)
@@ -251,7 +255,7 @@ export async function deleteBarberCascade(barberId) {
 }
 
 // ========================
-// SALES / TRANSACTIONS
+// SALES / TRANSACTIONS (UNIFIED WITH DEBT/PAYMENT AUDIT FIELDS)
 // ========================
 
 export async function createSale({
@@ -282,9 +286,7 @@ export async function createSale({
   const todayStr = getTodayDateString();
 
   const result = await runTransaction(db, async (transaction) => {
-    // -------------------------------------------------------------
-    // 1. ALL READS FIRST (Firestore rule: All reads before any write)
-    // -------------------------------------------------------------
+    // 1. ALL READS FIRST
     const barberRef = doc(db, COLLECTIONS.BARBERS, barberId);
     const barberDoc = await transaction.get(barberRef);
     if (!barberDoc.exists()) throw new Error("Sartarosh topilmadi");
@@ -297,11 +299,10 @@ export async function createSale({
       reportDoc = await transaction.get(reportRef);
     }
 
-    // -------------------------------------------------------------
     // 2. IN-MEMORY CALCULATIONS
-    // -------------------------------------------------------------
     const bData = barberDoc.data();
-    const contract = contractType || bData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
+    const contract =
+      contractType || bData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
     const price = Number(unitPrice) || Number(bData.pricePerTowel) || 3000;
 
     let chargedAmount = 0;
@@ -318,7 +319,8 @@ export async function createSale({
 
     const newTowelsCount = Math.max(0, currentTowels + qty - returnedQty);
 
-    const netBalance = (currentDebt - currentOverpaid) + chargedAmount - totalCredit;
+    const netBalance =
+      currentDebt - currentOverpaid + chargedAmount - totalCredit;
     let newDebt = 0;
     let newOverpaid = 0;
     if (netBalance > 0) {
@@ -329,22 +331,48 @@ export async function createSale({
       newOverpaid = Math.abs(netBalance);
     }
 
-    // -------------------------------------------------------------
+    // Debt & payment audit fields stored directly on the sale document
+    // (eliminates the duplicate /logs collection and its full-collection scans)
+    const isDebtPayment = currentDebt > 0 && totalCredit > 0;
+    const debtPaidAmount = isDebtPayment
+      ? Math.min(currentDebt, totalCredit)
+      : 0;
+    const isNewDebt = newDebt > currentDebt;
+    const newDebtAmount = isNewDebt ? newDebt - currentDebt : 0;
+
+    let logType = "CASH_SALE";
+    if (isDebtPayment && isNewDebt) {
+      logType = "PAYMENT_AND_DEBT";
+    } else if (isDebtPayment) {
+      logType = "DEBT_PAYMENT";
+    } else if (isNewDebt) {
+      logType = "NEW_DEBT";
+    }
+
     // 3. ALL WRITES AFTER READS
-    // -------------------------------------------------------------
-    // 3A. Update barber doc
-    transaction.update(barberRef, {
+    // 3A. Update barber doc (including lifetime counters)
+    const barberUpdate = {
       towelsCount: newTowelsCount,
       debt: newDebt,
       overpaid: newOverpaid,
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (bData.totalDelivered !== undefined) {
+      barberUpdate.totalDelivered =
+        Math.max(0, (Number(bData.totalDelivered) || 0) + qty);
+      barberUpdate.totalReturned =
+        Math.max(0, (Number(bData.totalReturned) || 0) + returnedQty);
+      barberUpdate.totalSalesSum =
+        Math.max(0, (Number(bData.totalSalesSum) || 0) + totalPrice);
+    }
+    transaction.update(barberRef, barberUpdate);
 
-    // 3B. Create sale document
+    // 3B. Create unified sale document (contains both sale & debt audit info)
     const salesCol = collection(db, COLLECTIONS.SALES);
     const saleDocRef = doc(salesCol);
 
     transaction.set(saleDocRef, {
+      type: logType,
       barberId,
       barbershopId: barbershopId || bData.barbershopId || "",
       staffId: staffId || "unknown",
@@ -355,10 +383,22 @@ export async function createSale({
       returnedTowels: returnedQty,
       unitPrice: price,
       totalPrice,
+      chargedAmount,
       contractType: contract,
       cashAmount: cash,
       cardAmount: card,
       discount: disc,
+      totalPaid,
+      totalCredit,
+      oldDebt: currentDebt,
+      newDebt,
+      debtDifference: newDebt - currentDebt,
+      isDebtPayment,
+      debtPaidAmount,
+      isNewDebt,
+      newDebtAmount,
+      oldOverpaid: currentOverpaid,
+      newOverpaid,
       note: note.trim(),
       date: todayStr,
       createdAt: serverTimestamp(),
@@ -409,95 +449,10 @@ export async function createSale({
       }
     }
 
-    // 3D. Write to LOGS collection (records debt payments and new debts incurred)
-    const logsCol = collection(db, COLLECTIONS.LOGS);
-    const logDocRef = doc(logsCol);
-
-    // Only genuine debt payment if prior debt > 0
-    const isDebtPayment = currentDebt > 0 && totalCredit > 0;
-    const debtPaidAmount = isDebtPayment ? Math.min(currentDebt, totalCredit) : 0;
-
-    // Only genuine new debt if debt actually increased
-    const isNewDebt = newDebt > currentDebt;
-    const newDebtAmount = isNewDebt ? (newDebt - currentDebt) : 0;
-
-    let logType = "CASH_SALE";
-    if (isDebtPayment && isNewDebt) {
-      logType = "PAYMENT_AND_DEBT";
-    } else if (isDebtPayment) {
-      logType = "DEBT_PAYMENT";
-    } else if (isNewDebt) {
-      logType = "NEW_DEBT";
-    }
-
-    transaction.set(logDocRef, {
-      type: logType,
-      saleId: saleDocRef.id,
-      barberId,
-      barberName: barberName || bData.name || "",
-      barbershopId: barbershopId || bData.barbershopId || "",
-      barbershopName: barbershopName || "",
-      staffId: staffId || "unknown",
-      staffName: staffName || "Xodim",
-
-      // Cash & Click money received
-      cashAmount: cash,
-      cardAmount: card,
-      discount: disc,
-      totalPaid: totalPaid,
-      totalCredit: totalCredit,
-      chargedAmount: chargedAmount,
-
-      // Debt tracking
-      oldDebt: currentDebt,
-      newDebt: newDebt,
-      debtDifference: newDebt - currentDebt,
-      isDebtPayment,
-      debtPaidAmount,
-      isNewDebt,
-      newDebtAmount,
-
-      // Overpayment tracking
-      oldOverpaid: currentOverpaid,
-      newOverpaid: newOverpaid,
-
-      // Towels details
-      quantityDelivered: qty,
-      returnedTowels: returnedQty,
-      unitPrice: price,
-      contractType: contract,
-
-      note: note.trim(),
-      date: todayStr,
-      createdAt: serverTimestamp(),
-    });
-
-    return {
-      saleId: saleDocRef.id,
-      logId: logDocRef.id,
-      isDebtPayment,
-      debtPaidAmount,
-      isNewDebt,
-      newDebtAmount,
-    };
+    return saleDocRef.id;
   });
 
-  // 4. Check 2-hour matching cancellation rule:
-  // If barber had a debt within 2 hours and now pays the same amount,
-  // delete the debt log from /logs and do not keep the payment in debt logs!
-  if (result.isDebtPayment && result.debtPaidAmount > 0) {
-    try {
-      await cancelTwoHourMatchedLogs({
-        barberId,
-        debtPaidAmount: result.debtPaidAmount,
-        paymentLogId: result.logId,
-      });
-    } catch (err) {
-      console.warn("2-hour matching cancellation error:", err);
-    }
-  }
-
-  return result.saleId;
+  return result;
 }
 
 export async function updateSale(
@@ -508,9 +463,7 @@ export async function updateSale(
   const newReturnedQty = Number(returnedTowels) || 0;
 
   await runTransaction(db, async (transaction) => {
-    // -------------------------------------------------------------
     // 1. ALL READS FIRST
-    // -------------------------------------------------------------
     const saleRef = doc(db, COLLECTIONS.SALES, saleId);
     const saleDoc = await transaction.get(saleRef);
     if (!saleDoc.exists()) throw new Error("Sotuv topilmadi");
@@ -532,46 +485,58 @@ export async function updateSale(
       reportDoc = await transaction.get(reportRef);
     }
 
-    // -------------------------------------------------------------
     // 2. IN-MEMORY CALCULATIONS
-    // -------------------------------------------------------------
     const price = Number(oldData.unitPrice) || 3000;
     const contract = oldData.contractType || CONTRACT_TYPES.PAY_FOR_TAKEN;
 
     const oldQty = Number(oldData.quantityDelivered) || 0;
     const oldReturnedQty = Number(oldData.returnedTowels) || 0;
-    const oldCash = Number(oldData.cashAmount !== undefined ? oldData.cashAmount : (oldData.receivedMoney || 0));
+    const oldCash = Number(
+      oldData.cashAmount !== undefined
+        ? oldData.cashAmount
+        : oldData.receivedMoney || 0
+    );
     const oldCard = Number(oldData.cardAmount) || 0;
     const oldDisc = Number(oldData.discount) || 0;
 
-    const newCash = cashAmount !== undefined ? Number(cashAmount) || 0 : oldCash;
-    const newCard = cardAmount !== undefined ? Number(cardAmount) || 0 : oldCard;
-    const newDisc = discount !== undefined ? Number(discount) || 0 : oldDisc;
+    const newCash =
+      cashAmount !== undefined ? Number(cashAmount) || 0 : oldCash;
+    const newCard =
+      cardAmount !== undefined ? Number(cardAmount) || 0 : oldCard;
+    const newDisc =
+      discount !== undefined ? Number(discount) || 0 : oldDisc;
 
-    // Towel diffs
     const oldTowelDelta = oldQty - oldReturnedQty;
     const newTowelDelta = newQty - newReturnedQty;
     const towelDeltaDiff = newTowelDelta - oldTowelDelta;
 
-    // Money diffs
-    const oldCharge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? oldQty * price : oldReturnedQty * price;
-    const newCharge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? newQty * price : newReturnedQty * price;
+    const oldCharge =
+      contract === CONTRACT_TYPES.PAY_FOR_TAKEN
+        ? oldQty * price
+        : oldReturnedQty * price;
+    const newCharge =
+      contract === CONTRACT_TYPES.PAY_FOR_TAKEN
+        ? newQty * price
+        : newReturnedQty * price;
     const oldCredit = oldCash + oldCard + oldDisc;
     const newCredit = newCash + newCard + newDisc;
-    const balanceDiff = (newCharge - oldCharge) - (newCredit - oldCredit);
+    const newPaid = newCash + newCard;
+    const balanceDiff = newCharge - oldCharge - (newCredit - oldCredit);
 
-    // -------------------------------------------------------------
     // 3. ALL WRITES AFTER READS
-    // -------------------------------------------------------------
-    // 3A. Update Barber
+    let updatedBarberDebt = Number(oldData.newDebt) || 0;
+    let updatedBarberOverpaid = Number(oldData.newOverpaid) || 0;
+
     if (barberRef && barberDoc && barberDoc.exists()) {
       const bData = barberDoc.data();
-      const currentTowels = Number(bData.towelsCount ?? bData.initialTowels ?? 0);
+      const currentTowels = Number(
+        bData.towelsCount ?? bData.initialTowels ?? 0
+      );
       const currentDebt = Number(bData.debt) || 0;
       const currentOverpaid = Number(bData.overpaid) || 0;
 
       const updatedTowelsCount = Math.max(0, currentTowels + towelDeltaDiff);
-      const netBalance = (currentDebt - currentOverpaid) + balanceDiff;
+      const netBalance = currentDebt - currentOverpaid + balanceDiff;
       let newDebt = 0;
       let newOverpaid = 0;
       if (netBalance > 0) {
@@ -582,28 +547,61 @@ export async function updateSale(
         newOverpaid = Math.abs(netBalance);
       }
 
-      transaction.update(barberRef, {
+      updatedBarberDebt = newDebt;
+      updatedBarberOverpaid = newOverpaid;
+
+      const barberUpdate = {
         towelsCount: updatedTowelsCount,
         debt: newDebt,
         overpaid: newOverpaid,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (bData.totalDelivered !== undefined) {
+        barberUpdate.totalDelivered = Math.max(
+          0,
+          (Number(bData.totalDelivered) || 0) + (newQty - oldQty)
+        );
+        barberUpdate.totalReturned = Math.max(
+          0,
+          (Number(bData.totalReturned) || 0) + (newReturnedQty - oldReturnedQty)
+        );
+        barberUpdate.totalSalesSum = Math.max(
+          0,
+          (Number(bData.totalSalesSum) || 0) + (newCharge - oldCharge)
+        );
+      }
+      transaction.update(barberRef, barberUpdate);
     }
 
-    // 3B. Update Sale Doc
+    const priorDebt = Number(oldData.oldDebt) || 0;
+    const isDebtPayment = priorDebt > 0 && newCredit > 0;
+    const debtPaidAmount = isDebtPayment
+      ? Math.min(priorDebt, newCredit)
+      : 0;
+    const isNewDebt = newCharge > newCredit;
+    const newDebtAmount = isNewDebt ? newCharge - newCredit : 0;
+
     const saleUpdates = {
       quantityDelivered: newQty,
       returnedTowels: newReturnedQty,
       totalPrice: newCharge,
+      chargedAmount: newCharge,
       cashAmount: newCash,
       cardAmount: newCard,
       discount: newDisc,
+      totalPaid: newPaid,
+      totalCredit: newCredit,
+      newDebt: updatedBarberDebt,
+      newOverpaid: updatedBarberOverpaid,
+      isDebtPayment,
+      debtPaidAmount,
+      isNewDebt,
+      newDebtAmount,
       updatedAt: serverTimestamp(),
     };
     if (note !== undefined) saleUpdates.note = note.trim();
     transaction.update(saleRef, saleUpdates);
 
-    // 3C. Update Daily Report if applicable
     if (reportRef && reportDoc && reportDoc.exists()) {
       const rep = reportDoc.data();
       const deliveredDiff = newQty - oldQty;
@@ -611,10 +609,16 @@ export async function updateSale(
       const cashDiff = newCash - oldCash;
       const cardDiff = newCard - oldCard;
       const discDiff = newDisc - oldDisc;
-      const totalPaidDiff = (newCash + newCard) - (oldCash + oldCard);
+      const totalPaidDiff = newCash + newCard - (oldCash + oldCard);
 
-      const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) + deliveredDiff);
-      const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) + returnedDiff);
+      const totalDelivered = Math.max(
+        0,
+        (Number(rep.totalDelivered) || 0) + deliveredDiff
+      );
+      const totalReturned = Math.max(
+        0,
+        (Number(rep.totalReturned) || 0) + returnedDiff
+      );
       const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
       const unsold = Number(rep.unsoldTowelsReturned) || 0;
       const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
@@ -631,31 +635,11 @@ export async function updateSale(
       });
     }
   });
-
-  // After transaction, sync associated logs
-  try {
-    const newCredit = (Number(cashAmount) || 0) + (Number(cardAmount) || 0) + (Number(discount) || 0);
-    const newQty = Number(quantityDelivered) || 0;
-    // If sale is fully paid, remove any debt log for this sale
-    const q = query(collection(db, COLLECTIONS.LOGS), where("saleId", "==", saleId));
-    const snap = await getDocs(q);
-    for (const d of snap.docs) {
-      const data = d.data();
-      const charged = Number(data.chargedAmount) || (newQty * (Number(data.unitPrice) || 3000));
-      if (newCredit >= charged) {
-        await deleteDoc(d.ref);
-      }
-    }
-  } catch (err) {
-    console.warn("updateSale logs sync error:", err);
-  }
 }
 
 export async function deleteSale(saleId) {
   await runTransaction(db, async (transaction) => {
-    // -------------------------------------------------------------
     // 1. ALL READS FIRST
-    // -------------------------------------------------------------
     const saleRef = doc(db, COLLECTIONS.SALES, saleId);
     const saleDoc = await transaction.get(saleRef);
     if (!saleDoc.exists()) return;
@@ -677,9 +661,7 @@ export async function deleteSale(saleId) {
       reportDoc = await transaction.get(reportRef);
     }
 
-    // -------------------------------------------------------------
     // 2. IN-MEMORY CALCULATIONS & WRITES
-    // -------------------------------------------------------------
     const qty = Number(data.quantityDelivered) || 0;
     const returnedQty = Number(data.returnedTowels) || 0;
     const price = Number(data.unitPrice) || 3000;
@@ -687,6 +669,10 @@ export async function deleteSale(saleId) {
     const cash = Number(data.cashAmount) || 0;
     const card = Number(data.cardAmount) || 0;
     const disc = Number(data.discount) || 0;
+    const charge =
+      contract === CONTRACT_TYPES.PAY_FOR_TAKEN
+        ? qty * price
+        : returnedQty * price;
 
     // 2A. Revert barber
     if (barberRef && barberDoc && barberDoc.exists()) {
@@ -696,12 +682,10 @@ export async function deleteSale(saleId) {
       const currentOverpaid = Number(bData.overpaid) || 0;
 
       const revertedTowels = Math.max(0, currentTowels - (qty - returnedQty));
-
-      const charge = contract === CONTRACT_TYPES.PAY_FOR_TAKEN ? qty * price : returnedQty * price;
       const credit = cash + card + disc;
       const balanceDelta = -(charge - credit);
 
-      const netBalance = (currentDebt - currentOverpaid) + balanceDelta;
+      const netBalance = currentDebt - currentOverpaid + balanceDelta;
       let newDebt = 0;
       let newOverpaid = 0;
       if (netBalance > 0) {
@@ -712,19 +696,40 @@ export async function deleteSale(saleId) {
         newOverpaid = Math.abs(netBalance);
       }
 
-      transaction.update(barberRef, {
+      const barberUpdate = {
         towelsCount: revertedTowels,
         debt: newDebt,
         overpaid: newOverpaid,
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (bData.totalDelivered !== undefined) {
+        barberUpdate.totalDelivered = Math.max(
+          0,
+          (Number(bData.totalDelivered) || 0) - qty
+        );
+        barberUpdate.totalReturned = Math.max(
+          0,
+          (Number(bData.totalReturned) || 0) - returnedQty
+        );
+        barberUpdate.totalSalesSum = Math.max(
+          0,
+          (Number(bData.totalSalesSum) || 0) - charge
+        );
+      }
+      transaction.update(barberRef, barberUpdate);
     }
 
     // 2B. Revert daily report
     if (reportRef && reportDoc && reportDoc.exists()) {
       const rep = reportDoc.data();
-      const totalDelivered = Math.max(0, (Number(rep.totalDelivered) || 0) - qty);
-      const totalReturned = Math.max(0, (Number(rep.totalReturned) || 0) - returnedQty);
+      const totalDelivered = Math.max(
+        0,
+        (Number(rep.totalDelivered) || 0) - qty
+      );
+      const totalReturned = Math.max(
+        0,
+        (Number(rep.totalReturned) || 0) - returnedQty
+      );
       const totalLoaded = Number(rep.totalLoadedFromWarehouse) || 0;
       const unsold = Number(rep.unsoldTowelsReturned) || 0;
       const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
@@ -745,214 +750,96 @@ export async function deleteSale(saleId) {
     // 2C. Delete sale doc
     transaction.delete(saleRef);
   });
+}
 
-  // After transaction, clean up associated logs
-  try {
-    const q = query(collection(db, COLLECTIONS.LOGS), where("saleId", "==", saleId));
-    const snap = await getDocs(q);
-    for (const d of snap.docs) {
-      await deleteDoc(d.ref);
-    }
-  } catch (err) {
-    console.warn("deleteSale logs cleanup error:", err);
-  }
+function normalizeSaleDoc(docItem) {
+  const data = docItem.data();
+  const cashAmount = Number(data.cashAmount || 0);
+  const cardAmount = Number(data.cardAmount || 0);
+  const discount = Number(data.discount || 0);
+  return {
+    id: docItem.id,
+    ...data,
+    quantityDelivered: Number(data.quantityDelivered || 0),
+    returnedTowels: Number(data.returnedTowels || 0),
+    cashAmount,
+    cardAmount,
+    discount,
+    totalPrice: Number(data.totalPrice || 0),
+    totalPaid: cashAmount + cardAmount,
+    totalCredit: cashAmount + cardAmount + discount,
+  };
 }
 
 /**
- * 2-hour matching rule:
- * If a barber got into debt and then paid the debt with the same amount within 2 hours:
- * Delete the debt log from /logs and do not keep the debt payment in /logs!
+ * Subscribe to the most recent sales (bounded by maxLimit to prevent
+ * reading thousands of historical documents on every page load).
  */
-export async function cancelTwoHourMatchedLogs({ barberId, debtPaidAmount, paymentLogId }) {
-  if (!barberId || !debtPaidAmount) return;
-  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-  const now = Date.now();
-
-  try {
-    // Query without orderBy to avoid needing a Firestore composite index
-    const q = query(
-      collection(db, COLLECTIONS.LOGS),
-      where("barberId", "==", barberId)
-    );
-    const snap = await getDocs(q);
-
-    for (const docSnap of snap.docs) {
-      if (docSnap.id === paymentLogId) continue;
-      const data = docSnap.data();
-
-      // Check if this log recorded a debt
-      const isDebt = data.isNewDebt || data.type === "NEW_DEBT" || Number(data.newDebtAmount) > 0;
-      if (!isDebt) continue;
-
-      const docTime = data.createdAt?.toMillis
-        ? data.createdAt.toMillis()
-        : data.createdAt?.toDate
-        ? data.createdAt.toDate().getTime()
-        : data.createdAt
-        ? new Date(data.createdAt).getTime()
-        : 0;
-
-      if (docTime && Math.abs(now - docTime) <= TWO_HOURS_MS) {
-        const debtAmt = Number(data.newDebtAmount) || Number(data.debtDifference) || 0;
-        // Same amount (allow within 100 so'm)
-        if (Math.abs(debtAmt - debtPaidAmount) < 100) {
-          // 1. Delete debt log from /logs
-          await deleteDoc(docSnap.ref);
-          // 2. Delete payment log from /logs
-          if (paymentLogId) {
-            await deleteDoc(doc(db, COLLECTIONS.LOGS, paymentLogId));
-          }
-          break;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("cancelTwoHourMatchedLogs error:", err);
-  }
-}
-
-/**
- * Cleanup any past 2-hour matched debt/payment pairs currently stored in Firestore /logs
- * Also cleans up false 0 -> 0 so'm debt payment records
- */
-export async function cleanupAllTwoHourMatchedLogs() {
-  const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-  try {
-    const snap = await getDocs(collection(db, COLLECTIONS.LOGS));
-    const docs = snap.docs.map((d) => ({ id: d.id, ref: d.ref, ...d.data() }));
-
-    const getTime = (item) => {
-      if (item.createdAt?.toMillis) return item.createdAt.toMillis();
-      if (item.createdAt?.toDate) return item.createdAt.toDate().getTime();
-      if (item.createdAt) return new Date(item.createdAt).getTime();
-      return 0;
-    };
-
-    const toDeleteIds = new Set();
-
-    // 1. Remove bogus logs where oldDebt === 0 && newDebt === 0 (pure cash sales mislabeled as debt payments)
-    docs.forEach((item) => {
-      const oldD = Number(item.oldDebt) || 0;
-      const newD = Number(item.newDebt) || 0;
-      const newDebtAmt = Number(item.newDebtAmount) || 0;
-      if (oldD === 0 && newD === 0 && newDebtAmt === 0 && item.isDebtPayment) {
-        toDeleteIds.add(item.id);
-      }
-    });
-
-    // 2. Remove 2-hour matched debt and payment pairs
-    docs.forEach((itemA) => {
-      if (toDeleteIds.has(itemA.id)) return;
-      const isDebtA = itemA.isNewDebt || itemA.type === "NEW_DEBT" || Number(itemA.newDebtAmount) > 0;
-      if (!isDebtA) return;
-
-      const amtA = Number(itemA.newDebtAmount) || Number(itemA.debtDifference) || 0;
-      const timeA = getTime(itemA);
-
-      const matchB = docs.find((itemB) => {
-        if (itemB.id === itemA.id || toDeleteIds.has(itemB.id)) return false;
-        if (itemB.barberId !== itemA.barberId) return false;
-
-        const isPayB = itemB.isDebtPayment || itemB.type === "DEBT_PAYMENT" || Number(itemB.debtPaidAmount) > 0;
-        if (!isPayB) return false;
-
-        const amtB = Number(itemB.debtPaidAmount) || Number(itemB.totalPaid) || 0;
-        if (Math.abs(amtA - amtB) > 100) return false;
-
-        const timeB = getTime(itemB);
-        if (Math.abs(timeA - timeB) > TWO_HOURS_MS) return false;
-
-        return true;
-      });
-
-      if (matchB) {
-        toDeleteIds.add(itemA.id);
-        toDeleteIds.add(matchB.id);
-      }
-    });
-
-    for (const docId of toDeleteIds) {
-      await deleteDoc(doc(db, COLLECTIONS.LOGS, docId));
-    }
-
-    return toDeleteIds.size;
-  } catch (err) {
-    console.warn("cleanupAllTwoHourMatchedLogs error:", err);
-    return 0;
-  }
-}
-
-export function subscribeLogs(callback) {
-  const q = query(
-    collection(db, COLLECTIONS.LOGS),
-    orderBy("createdAt", "desc")
-  );
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-      }));
-      callback(items);
-    },
-    (err) => console.error("Logs subscribe error:", err)
-  );
-}
-
-export function subscribeSales(callback) {
+export function subscribeSales(callback, maxLimit = DEFAULT_SALES_LIMIT) {
   const q = query(
     collection(db, COLLECTIONS.SALES),
-    orderBy("createdAt", "desc")
+    orderBy("createdAt", "desc"),
+    limit(maxLimit)
   );
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-        quantityDelivered: Number(docItem.data().quantityDelivered || 0),
-        returnedTowels: Number(docItem.data().returnedTowels || 0),
-        cashAmount: Number(docItem.data().cashAmount || 0),
-        cardAmount: Number(docItem.data().cardAmount || 0),
-        discount: Number(docItem.data().discount || 0),
-        totalPrice: Number(docItem.data().totalPrice || 0),
-        totalPaid: Number(docItem.data().cashAmount || 0) + Number(docItem.data().cardAmount || 0),
-      }));
-      callback(items);
+      callback(snapshot.docs.map(normalizeSaleDoc));
     },
     (err) => console.error("Sales subscribe error:", err)
   );
 }
 
-export function subscribeStaffSales(staffId, callback) {
+export function subscribeStaffSales(
+  staffId,
+  callback,
+  maxLimit = DEFAULT_SALES_LIMIT
+) {
   const q = query(
     collection(db, COLLECTIONS.SALES),
     where("staffId", "==", staffId),
-    orderBy("createdAt", "desc")
+    orderBy("createdAt", "desc"),
+    limit(maxLimit)
   );
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs.map((docItem) => ({
-        id: docItem.id,
-        ...docItem.data(),
-        quantityDelivered: Number(docItem.data().quantityDelivered || 0),
-        returnedTowels: Number(docItem.data().returnedTowels || 0),
-        cashAmount: Number(docItem.data().cashAmount || 0),
-        cardAmount: Number(docItem.data().cardAmount || 0),
-        discount: Number(docItem.data().discount || 0),
-        totalPrice: Number(docItem.data().totalPrice || 0),
-        totalPaid: Number(docItem.data().cashAmount || 0) + Number(docItem.data().cardAmount || 0),
-      }));
-      callback(items);
+      callback(snapshot.docs.map(normalizeSaleDoc));
     },
     (err) => console.error("Staff sales subscribe error:", err)
   );
 }
 
+/**
+ * Server-side aggregation for all-time sales totals.
+ * Costs only 1 read per 1,000 index entries instead of downloading all documents.
+ */
+export async function getAllTimeSalesAggregate() {
+  try {
+    const snap = await getAggregateFromServer(
+      collection(db, COLLECTIONS.SALES),
+      {
+        allTimeSum: sum("totalPrice"),
+        allTimeTowels: sum("quantityDelivered"),
+        allTimeReturned: sum("returnedTowels"),
+        allTimeCount: count(),
+      }
+    );
+    const data = snap.data();
+    return {
+      allTimeSum: Number(data.allTimeSum || 0),
+      allTimeTowels: Number(data.allTimeTowels || 0),
+      allTimeReturned: Number(data.allTimeReturned || 0),
+      allTimeCount: Number(data.allTimeCount || 0),
+    };
+  } catch (err) {
+    console.warn("Server aggregate fallback:", err);
+    return null;
+  }
+}
+
 // ========================
-// RETURN TRANSACTIONS (Helper for backwards-compat)
+// RETURN TRANSACTIONS & PAYMENT HELPERS
 // ========================
 
 export async function createReturn({
@@ -983,42 +870,6 @@ export async function createReturn({
   });
 }
 
-export function subscribeReturns(callback) {
-  const q = query(
-    collection(db, COLLECTIONS.SALES),
-    orderBy("createdAt", "desc")
-  );
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items = snapshot.docs
-        .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
-        .filter((item) => Number(item.returnedTowels) > 0);
-      callback(items);
-    },
-    (err) => console.error("Returns subscribe error:", err)
-  );
-}
-
-export function subscribeStaffReturns(staffId, callback) {
-  const q = query(
-    collection(db, COLLECTIONS.SALES),
-    where("staffId", "==", staffId),
-    orderBy("createdAt", "desc")
-  );
-  return onSnapshot(
-    q,
-    (snapshot) => {
-      const items = snapshot.docs
-        .map((docItem) => ({ id: docItem.id, ...docItem.data() }))
-        .filter((item) => Number(item.returnedTowels) > 0);
-      callback(items);
-    },
-    (err) => console.error("Staff returns subscribe error:", err)
-  );
-}
-
-// Payment recording helper
 export async function recordBarberPayment(payload) {
   return createSale({
     barberId: payload.barberId,
@@ -1075,10 +926,14 @@ export async function updateUserRole(uid, role) {
 // DAILY REPORTS & WAREHOUSE INVENTORY
 // ========================
 
-export function subscribeDailyReports(callback) {
+export function subscribeDailyReports(
+  callback,
+  maxLimit = DEFAULT_REPORTS_LIMIT
+) {
   const q = query(
     collection(db, COLLECTIONS.DAILY_REPORTS),
-    orderBy("date", "desc")
+    orderBy("date", "desc"),
+    limit(maxLimit)
   );
   return onSnapshot(
     q,
@@ -1093,11 +948,16 @@ export function subscribeDailyReports(callback) {
   );
 }
 
-export function subscribeStaffDailyReports(staffId, callback) {
+export function subscribeStaffDailyReports(
+  staffId,
+  callback,
+  maxLimit = DEFAULT_REPORTS_LIMIT
+) {
   const q = query(
     collection(db, COLLECTIONS.DAILY_REPORTS),
     where("staffId", "==", staffId),
-    orderBy("date", "desc")
+    orderBy("date", "desc"),
+    limit(maxLimit)
   );
   return onSnapshot(
     q,
@@ -1115,8 +975,13 @@ export function subscribeStaffDailyReports(staffId, callback) {
 /**
  * Record warehouse towel load (driver pickup from warehouse)
  */
-export async function recordWarehouseLoad({ staffId, staffName, count, note = "" }) {
-  const loadCount = Number(count) || 0;
+export async function recordWarehouseLoad({
+  staffId,
+  staffName,
+  count: loadVal,
+  note = "",
+}) {
+  const loadCount = Number(loadVal) || 0;
   if (loadCount <= 0 || !staffId) return;
 
   const todayStr = getTodayDateString();
@@ -1142,9 +1007,12 @@ export async function recordWarehouseLoad({ staffId, staffName, count, note = ""
 
     if (reportDoc.exists()) {
       const rep = reportDoc.data();
-      const existingLoads = Array.isArray(rep.warehouseLoads) ? rep.warehouseLoads : [];
+      const existingLoads = Array.isArray(rep.warehouseLoads)
+        ? rep.warehouseLoads
+        : [];
       const updatedLoads = [...existingLoads, newLoadEntry];
-      const totalLoaded = (Number(rep.totalLoadedFromWarehouse) || 0) + loadCount;
+      const totalLoaded =
+        (Number(rep.totalLoadedFromWarehouse) || 0) + loadCount;
       const totalDelivered = Number(rep.totalDelivered) || 0;
       const unsold = Number(rep.unsoldTowelsReturned) || 0;
       const currentStock = Math.max(0, totalLoaded - totalDelivered - unsold);
@@ -1182,7 +1050,10 @@ export async function recordWarehouseLoad({ staffId, staffName, count, note = ""
 /**
  * Close daily report at end of day, recording unsold towels returned to warehouse
  */
-export async function closeDailyReport(reportId, { unsoldTowelsReturned = 0, note = "" } = {}) {
+export async function closeDailyReport(
+  reportId,
+  { unsoldTowelsReturned = 0, note = "" } = {}
+) {
   const reportRef = doc(db, COLLECTIONS.DAILY_REPORTS, reportId);
   const unsold = Number(unsoldTowelsReturned) || 0;
 

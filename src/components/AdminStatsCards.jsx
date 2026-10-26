@@ -1,10 +1,25 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertCircle, DollarSign, Package, TrendingUp } from './icons'
 import { uz } from '../i18n/uz'
+import { getAllTimeSalesAggregate } from '../services/firestoreService'
 
 export function AdminStatsCards({ sales = [], barbers = [] }) {
-  const navigate = useNavigate();
+  const navigate = useNavigate()
+  const [serverAllTime, setServerAllTime] = useState(null)
+
+  // Fetch lightweight server-side aggregation (1 read per 1,000 docs) so All-Time
+  // totals stay exact even when the real-time sales listener is bounded to 300 docs.
+  useEffect(() => {
+    let active = true
+    getAllTimeSalesAggregate().then((res) => {
+      if (active && res) setServerAllTime(res)
+    })
+    return () => {
+      active = false
+    }
+  }, [sales.length])
+
   const stats = useMemo(() => {
     // oxlint-disable-next-line react/purity
     const now = new Date()
@@ -19,18 +34,24 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
     let monthlyCount = 0
     let monthlyTowels = 0
 
-    let allTimeSum = 0
-    let allTimeCount = 0
-    let allTimeTowels = 0
+    let localAllTimeSum = 0
+    let localAllTimeCount = 0
+    let localAllTimeTowels = 0
 
     sales.forEach((s) => {
-      const time = s.createdAt?.toMillis ? s.createdAt.toMillis() : (s.createdAt ? new Date(s.createdAt).getTime() : 0)
+      const time = s.createdAt?.toMillis
+        ? s.createdAt.toMillis()
+        : s.createdAt?.toDate
+          ? s.createdAt.toDate().getTime()
+          : s.createdAt
+            ? new Date(s.createdAt).getTime()
+            : 0
       const amount = Number(s.totalPrice) || 0
       const towels = Number(s.quantityDelivered) || 0
 
-      allTimeSum += amount
-      allTimeCount += 1
-      allTimeTowels += towels
+      localAllTimeSum += amount
+      localAllTimeCount += 1
+      localAllTimeTowels += towels
 
       if (time >= startOfMonth) {
         monthlySum += amount
@@ -44,6 +65,10 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
         dailyTowels += towels
       }
     })
+
+    const allTimeSum = Math.max(localAllTimeSum, Number(serverAllTime?.allTimeSum || 0))
+    const allTimeCount = Math.max(localAllTimeCount, Number(serverAllTime?.allTimeCount || 0))
+    const allTimeTowels = Math.max(localAllTimeTowels, Number(serverAllTime?.allTimeTowels || 0))
 
     const totalDebt = barbers.reduce((acc, b) => acc + (Number(b.debt) || 0), 0)
     const totalOverpaid = barbers.reduce((acc, b) => acc + (Number(b.overpaid) || 0), 0)
@@ -61,7 +86,7 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
       totalDebt,
       totalOverpaid,
     }
-  }, [sales, barbers])
+  }, [sales, barbers, serverAllTime])
 
   const {
     dailySum,
@@ -88,8 +113,8 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
           onClick={() => navigate('/statistika/kunlik')}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              navigate('/statistika/kunlik');
+              e.preventDefault()
+              navigate('/statistika/kunlik')
             }
           }}
           className="group relative flex flex-col justify-between rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 text-white shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-98 transition-all"
