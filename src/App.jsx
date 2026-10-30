@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 
 import { AppLayout } from "./components/AppLayout";
@@ -79,20 +79,36 @@ function App() {
         return;
       }
 
-      setUser(currentUser);
-
-      // Listen to user profile in real-time
+      // Listen to user profile in real-time. Only authenticate once Firestore document is verified.
       const userRef = doc(db, COLLECTIONS.USERS, currentUser.uid);
-      unsubscribeDoc = onSnapshot(userRef, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          setUserProfile(data);
-          setRole(data.role || ROLES.DELIVERY);
-        } else {
-          setRole(ROLES.DELIVERY);
+      unsubscribeDoc = onSnapshot(
+        userRef,
+        async (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            setUser(currentUser);
+            setUserProfile(data);
+            setRole(data.role || ROLES.DELIVERY);
+            setLoading(false);
+          } else {
+            // User does not exist in Firestore! Force sign out and remain on Login page.
+            console.warn("User profile does not exist in Firestore. Signing out:", currentUser.uid);
+            await signOut(auth).catch(() => {});
+            setUser(null);
+            setUserProfile(null);
+            setRole(null);
+            setLoading(false);
+          }
+        },
+        async (error) => {
+          console.error("User profile snapshot error:", error);
+          await signOut(auth).catch(() => {});
+          setUser(null);
+          setUserProfile(null);
+          setRole(null);
+          setLoading(false);
         }
-        setLoading(false);
-      });
+      );
     });
 
     // Setup FCM Foreground notifications listener
@@ -350,6 +366,7 @@ function App() {
                   userProfile={userProfile}
                   sales={sales}
                   barbers={barbers}
+                  barbershops={barbershops}
                   returns={returns}
                   dailyReports={dailyReports}
                 />

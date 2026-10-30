@@ -1,24 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertCircle, DollarSign, Package, TrendingUp } from './icons'
+import { ChevronRight, DollarSign, Package, TrendingUp } from './icons'
+import { DebtorsModal } from './DebtorsModal'
 import { uz } from '../i18n/uz'
-import { getAllTimeSalesAggregate } from '../services/firestoreService'
 
-export function AdminStatsCards({ sales = [], barbers = [] }) {
+export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) {
   const navigate = useNavigate()
-  const [serverAllTime, setServerAllTime] = useState(null)
-
-  // Fetch lightweight server-side aggregation (1 read per 1,000 docs) so All-Time
-  // totals stay exact even when the real-time sales listener is bounded to 300 docs.
-  useEffect(() => {
-    let active = true
-    getAllTimeSalesAggregate().then((res) => {
-      if (active && res) setServerAllTime(res)
-    })
-    return () => {
-      active = false
-    }
-  }, [sales.length])
+  const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false)
+  const [debtorsModalTab, setDebtorsModalTab] = useState('debt')
 
   const stats = useMemo(() => {
     // oxlint-disable-next-line react/purity
@@ -34,9 +23,9 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
     let monthlyCount = 0
     let monthlyTowels = 0
 
-    let localAllTimeSum = 0
-    let localAllTimeCount = 0
-    let localAllTimeTowels = 0
+    let allTimeSum = 0
+    let allTimeCount = 0
+    let allTimeTowels = 0
 
     sales.forEach((s) => {
       const time = s.createdAt?.toMillis
@@ -45,13 +34,13 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
           ? s.createdAt.toDate().getTime()
           : s.createdAt
             ? new Date(s.createdAt).getTime()
-            : 0
+            : (s.date ? new Date(`${s.date}T00:00:00`).getTime() : 0)
       const amount = Number(s.totalPrice) || 0
       const towels = Number(s.quantityDelivered) || 0
 
-      localAllTimeSum += amount
-      localAllTimeCount += 1
-      localAllTimeTowels += towels
+      allTimeSum += amount
+      allTimeCount += 1
+      allTimeTowels += towels
 
       if (time >= startOfMonth) {
         monthlySum += amount
@@ -66,10 +55,8 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
       }
     })
 
-    const allTimeSum = Math.max(localAllTimeSum, Number(serverAllTime?.allTimeSum || 0))
-    const allTimeCount = Math.max(localAllTimeCount, Number(serverAllTime?.allTimeCount || 0))
-    const allTimeTowels = Math.max(localAllTimeTowels, Number(serverAllTime?.allTimeTowels || 0))
-
+    const debtorsCount = barbers.filter((b) => Number(b.debt || 0) > 0).length
+    const overpaidCount = barbers.filter((b) => Number(b.overpaid || 0) > 0).length
     const totalDebt = barbers.reduce((acc, b) => acc + (Number(b.debt) || 0), 0)
     const totalOverpaid = barbers.reduce((acc, b) => acc + (Number(b.overpaid) || 0), 0)
 
@@ -85,8 +72,10 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
       allTimeTowels,
       totalDebt,
       totalOverpaid,
+      debtorsCount,
+      overpaidCount,
     }
-  }, [sales, barbers, serverAllTime])
+  }, [sales, barbers])
 
   const {
     dailySum,
@@ -100,7 +89,14 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
     allTimeTowels,
     totalDebt,
     totalOverpaid,
+    debtorsCount,
+    overpaidCount,
   } = stats
+
+  const handleOpenDebtors = (tab = 'debt') => {
+    setDebtorsModalTab(tab)
+    setIsDebtorsModalOpen(true)
+  }
 
   return (
     <div className="space-y-3">
@@ -172,26 +168,83 @@ export function AdminStatsCards({ sales = [], barbers = [] }) {
         </div>
       </div>
 
-      {/* Debts and Overpayments Balance Cards */}
+      {/* Debts and Overpayments Balance Cards (Both Clickable to view lists) */}
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="rounded-2xl border border-red-100 bg-red-50/70 p-3.5">
+        {/* Total Debt (Clickable -> Opens Debtors list modal) */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleOpenDebtors('debt')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleOpenDebtors('debt')
+            }
+          }}
+          className="group relative flex flex-col justify-between rounded-2xl border border-red-200/90 bg-gradient-to-br from-red-50/90 to-rose-50/70 p-3.5 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.98] hover:border-red-300 transition-all text-left"
+          title="Qarzdorlar ro'yxatini ko'rish"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-red-700">{uz.admin.stats.totalDebtTitle}</span>
-            <AlertCircle className="text-red-500" size={16} />
+            <span className="text-xs font-bold text-red-700 flex items-center gap-1">
+              <span>{uz.admin.stats.totalDebtTitle}</span>
+            </span>
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-red-100/90 px-2 py-0.5 text-[10px] font-bold text-red-800 group-hover:bg-red-200 transition-all">
+              <span>Ro'yxat</span>
+              <ChevronRight size={11} />
+            </span>
           </div>
-          <p className="mt-1 text-lg font-bold text-red-900">{totalDebt.toLocaleString()} {uz.common.sum}</p>
-          <p className="text-[11px] text-red-600">Sartaroshlarning jami qarzlari</p>
+          <div className="mt-2">
+            <p className="text-lg font-black text-red-950 tracking-tight">
+              {totalDebt.toLocaleString()} {uz.common.sum}
+            </p>
+            <p className="text-[11px] text-red-700 font-semibold mt-0.5">
+              {debtorsCount > 0 ? `${debtorsCount} nafar qarzdor sartarosh` : "Qarzdorlar mavjud emas"}
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5">
+        {/* Total Overpaid (Clickable -> Opens Overpaid list modal) */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => handleOpenDebtors('overpaid')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleOpenDebtors('overpaid')
+            }
+          }}
+          className="group relative flex flex-col justify-between rounded-2xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-teal-50/70 p-3.5 shadow-2xs cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.98] hover:border-emerald-300 transition-all text-left"
+          title="Ortiqcha to'lov qilgan sartaroshlar ro'yxatini ko'rish"
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-emerald-700">{uz.admin.stats.totalOverpaidTitle}</span>
-            <DollarSign className="text-emerald-500" size={16} />
+            <span className="text-xs font-bold text-emerald-800 flex items-center gap-1">
+              <span>{uz.admin.stats.totalOverpaidTitle}</span>
+            </span>
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100/90 px-2 py-0.5 text-[10px] font-bold text-emerald-800 group-hover:bg-emerald-200 transition-all">
+              <span>Ro'yxat</span>
+              <ChevronRight size={11} />
+            </span>
           </div>
-          <p className="mt-1 text-lg font-bold text-emerald-900">{totalOverpaid.toLocaleString()} {uz.common.sum}</p>
-          <p className="text-[11px] text-emerald-600">Oldindan to'langan summalar</p>
+          <div className="mt-2">
+            <p className="text-lg font-black text-emerald-950 tracking-tight">
+              {totalOverpaid.toLocaleString()} {uz.common.sum}
+            </p>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">
+              {overpaidCount > 0 ? `${overpaidCount} nafar sartaroshda haqdorlik` : "Ortiqcha to'lov mavjud emas"}
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Debtors / Overpaid Full List Modal */}
+      <DebtorsModal
+        isOpen={isDebtorsModalOpen}
+        onClose={() => setIsDebtorsModalOpen(false)}
+        barbers={barbers}
+        barbershops={barbershops}
+        initialTab={debtorsModalTab}
+      />
     </div>
   )
 }

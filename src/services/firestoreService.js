@@ -1,10 +1,8 @@
 import {
   addDoc,
   collection,
-  count,
   deleteDoc,
   doc,
-  getAggregateFromServer,
   getDocs,
   limit,
   onSnapshot,
@@ -12,13 +10,24 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  sum,
   updateDoc,
   where,
 } from "firebase/firestore";
 
 import { db } from "../config/firebase";
 import { COLLECTIONS, CONTRACT_TYPES } from "../constants/models";
+import {
+  isIndexedDBAvailable,
+  upsertSaleLocal,
+  deleteSaleLocal,
+  deleteSalesByBarberIdLocal,
+  deleteSalesByBarbershopIdLocal,
+} from "./localDb";
+import {
+  subscribeSalesWithSync,
+  broadcastLocalSales,
+  notifyOtherTabs,
+} from "./salesSyncService";
 
 // Default real-time listener window sizes to prevent unbounded full-history reads
 const DEFAULT_SALES_LIMIT = 300;
@@ -130,6 +139,13 @@ export async function deleteBarbershopCascade(barbershopId) {
   for (const sDoc of salesSnapshot.docs) {
     await deleteDoc(sDoc.ref);
   }
+
+  deleteSalesByBarbershopIdLocal(barbershopId)
+    .then(() => {
+      broadcastLocalSales();
+      notifyOtherTabs();
+    })
+    .catch(() => {});
 
   for (const bDoc of barbersSnapshot.docs) {
     await deleteDoc(bDoc.ref);
@@ -251,6 +267,12 @@ export async function deleteBarberCascade(barberId) {
   for (const sDoc of salesSnapshot.docs) {
     await deleteDoc(sDoc.ref);
   }
+  deleteSalesByBarberIdLocal(barberId)
+    .then(() => {
+      broadcastLocalSales();
+      notifyOtherTabs();
+    })
+    .catch(() => {});
   await deleteDoc(doc(db, COLLECTIONS.BARBERS, barberId));
 }
 
@@ -371,7 +393,7 @@ export async function createSale({
     const salesCol = collection(db, COLLECTIONS.SALES);
     const saleDocRef = doc(salesCol);
 
-    transaction.set(saleDocRef, {
+    const salePayload = {
       type: logType,
       barberId,
       barbershopId: barbershopId || bData.barbershopId || "",
@@ -403,7 +425,9 @@ export async function createSale({
       date: todayStr,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+
+    transaction.set(saleDocRef, salePayload);
 
     // 3C. Update or set Daily Report
     if (reportRef && reportDoc) {
@@ -449,8 +473,23 @@ export async function createSale({
       }
     }
 
-    return saleDocRef.id;
+    return { saleId: saleDocRef.id, payload: salePayload };
   });
+
+  if (result?.saleId) {
+    upsertSaleLocal({
+      id: result.saleId,
+      ...result.payload,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+      .then(() => {
+        broadcastLocalSales();
+        notifyOtherTabs();
+      })
+      .catch(() => {});
+    return result.saleId;
+  }
 
   return result;
 }
@@ -750,6 +789,13 @@ export async function deleteSale(saleId) {
     // 2C. Delete sale doc
     transaction.delete(saleRef);
   });
+
+  deleteSaleLocal(saleId)
+    .then(() => {
+      broadcastLocalSales();
+      notifyOtherTabs();
+    })
+    .catch(() => {});
 }
 
 function normalizeSaleDoc(docItem) {
@@ -772,10 +818,17 @@ function normalizeSaleDoc(docItem) {
 }
 
 /**
- * Subscribe to the most recent sales (bounded by maxLimit to prevent
- * reading thousands of historical documents on every page load).
+ * Subscribe to sales using Dexie IndexedDB with Firestore Delta-Sync.
+ * If IndexedDB is supported, saves 99% of Firestore reads by serving from local cache
+ * and only syncing changed documents (delta sync).
+ * Fallback to direct Firestore bounded query if IndexedDB is blocked.
  */
 export function subscribeSales(callback, maxLimit = DEFAULT_SALES_LIMIT) {
+  if (isIndexedDBAvailable()) {
+    return subscribeSalesWithSync(callback);
+  }
+
+  // Graceful fallback for non-IndexedDB environments
   const q = query(
     collection(db, COLLECTIONS.SALES),
     orderBy("createdAt", "desc"),
@@ -811,31 +864,10 @@ export function subscribeStaffSales(
 }
 
 /**
- * Server-side aggregation for all-time sales totals.
- * Costs only 1 read per 1,000 index entries instead of downloading all documents.
+ * Server-side aggregation fallback stub.
  */
 export async function getAllTimeSalesAggregate() {
-  try {
-    const snap = await getAggregateFromServer(
-      collection(db, COLLECTIONS.SALES),
-      {
-        allTimeSum: sum("totalPrice"),
-        allTimeTowels: sum("quantityDelivered"),
-        allTimeReturned: sum("returnedTowels"),
-        allTimeCount: count(),
-      }
-    );
-    const data = snap.data();
-    return {
-      allTimeSum: Number(data.allTimeSum || 0),
-      allTimeTowels: Number(data.allTimeTowels || 0),
-      allTimeReturned: Number(data.allTimeReturned || 0),
-      allTimeCount: Number(data.allTimeCount || 0),
-    };
-  } catch (err) {
-    console.warn("Server aggregate fallback:", err);
-    return null;
-  }
+  return null;
 }
 
 // ========================

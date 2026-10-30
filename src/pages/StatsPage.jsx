@@ -1,14 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { AdminPushBanner } from "../components/AdminPushBanner";
 import { AdminStatsCards } from "../components/AdminStatsCards";
 import { CheckCircle2, Clock, Package, Truck } from "../components/icons";
 import { isDeliveryRole } from "../constants/roles";
 import { useHeader } from "../context/HeaderContext";
 import { uz } from "../i18n/uz";
-import {
-  getAllTimeSalesAggregate,
-  getTodayDateString,
-} from "../services/firestoreService";
+import { getTodayDateString } from "../services/firestoreService";
 
 export function StatsPage({
   role,
@@ -16,23 +13,12 @@ export function StatsPage({
   userProfile,
   sales = [],
   barbers = [],
+  barbershops = [],
   returns = [],
   dailyReports = [],
 }) {
   const isStaff = isDeliveryRole(role);
   const todayStr = useMemo(() => getTodayDateString(), []);
-  const [serverTotals, setServerTotals] = useState(null);
-
-  useEffect(() => {
-    if (isStaff) return;
-    let active = true;
-    getAllTimeSalesAggregate().then((res) => {
-      if (active && res) setServerTotals(res);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isStaff, sales.length]);
 
   useHeader(
     {
@@ -136,14 +122,8 @@ export function StatsPage({
       localReturned += Number(r.returnedTowels) || 0;
     });
 
-    const totalDelivered = Math.max(
-      localDelivered,
-      Number(serverTotals?.allTimeTowels || 0),
-    );
-    const totalReturned = Math.max(
-      localReturned,
-      Number(serverTotals?.allTimeReturned || 0),
-    );
+    const totalDelivered = localDelivered;
+    const totalReturned = localReturned;
 
     const heldByClients = barbers.reduce(
       (sum, barber) =>
@@ -161,7 +141,7 @@ export function StatsPage({
       totalReturned,
       heldByClients,
     };
-  }, [sales, returns, barbers, serverTotals]);
+  }, [sales, returns, barbers]);
 
   // Staff Driver View
   if (isStaff && staffTodayStats) {
@@ -405,7 +385,11 @@ export function StatsPage({
     <div className="space-y-4 pb-6">
       <AdminPushBanner />
 
-      <AdminStatsCards sales={sales} barbers={barbers} />
+      <AdminStatsCards
+        sales={sales}
+        barbers={barbers}
+        barbershops={barbershops}
+      />
 
       <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
         <div className="flex items-center gap-2">

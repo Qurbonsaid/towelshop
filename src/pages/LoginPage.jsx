@@ -32,7 +32,11 @@ export function LoginPage({ onLogin }) {
       await onLogin(cleanPhone, password)
     } catch (err) {
       console.error('Login error:', err)
-      setError(uz.login.invalidCredentials)
+      const message =
+        err.message === "Foydalanuvchi ma'lumotlar bazasida topilmadi"
+          ? err.message
+          : uz.login.invalidCredentials
+      setError(message)
     } finally {
       setLoading(false)
     }

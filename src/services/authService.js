@@ -27,18 +27,26 @@ export async function loginWithPhone(phone, password) {
   const cleanPhone = normalizePhone(phone);
   const email = mapPhoneToEmail(cleanPhone);
 
-  const credential = await signInWithEmailAndPassword(auth, email, password);
-  const userDocRef = doc(db, COLLECTIONS.USERS, credential.user.uid);
-  const userDoc = await getDoc(userDocRef);
+  try {
+    const credential = await signInWithEmailAndPassword(auth, email, password);
+    const userDocRef = doc(db, COLLECTIONS.USERS, credential.user.uid);
+    const userDoc = await getDoc(userDocRef);
 
-  if (!userDoc.exists()) {
-    throw new Error("Foydalanuvchi ma'lumotlar bazasida topilmadi");
+    if (!userDoc.exists()) {
+      await signOut(auth).catch(() => {});
+      throw new Error("Foydalanuvchi ma'lumotlar bazasida topilmadi");
+    }
+
+    const profile = userDoc.data();
+    const role = profile.role;
+
+    return { user: credential.user, role, profile };
+  } catch (error) {
+    if (auth.currentUser) {
+      await signOut(auth).catch(() => {});
+    }
+    throw error;
   }
-
-  const profile = userDoc.data();
-  const role = profile.role;
-
-  return { user: credential.user, role, profile };
 }
 
 export function logout() {
