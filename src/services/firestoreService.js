@@ -28,21 +28,23 @@ import {
   broadcastLocalSales,
   notifyOtherTabs,
 } from "./salesSyncService";
+import {
+  getBusinessDateString,
+  autoClosePastDailyReports,
+} from "./shiftService";
+
+export { getBusinessDateString, autoClosePastDailyReports };
 
 // Default real-time listener window sizes to prevent unbounded full-history reads
 const DEFAULT_SALES_LIMIT = 300;
 const DEFAULT_REPORTS_LIMIT = 90;
 
 // ========================
-// DATE UTILS
+// DATE UTILS (GMT+5 Asia/Tashkent with 03:00 AM Shift Cutoff)
 // ========================
 
 export function getTodayDateString(d = new Date()) {
-  const date = d instanceof Date ? d : new Date(d);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getBusinessDateString(d);
 }
 
 // ========================

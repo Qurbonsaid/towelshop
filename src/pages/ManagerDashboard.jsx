@@ -331,7 +331,7 @@ export function ManagerDashboard({
                     ) : totalLoaded > 0 ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-bold text-sky-700 border border-sky-200">
                         <Truck size={12} />
-                        Faol / Yo'lda
+                        Faol (03:00 da avto)
                       </span>
                     ) : (
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">

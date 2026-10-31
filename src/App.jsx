@@ -30,6 +30,7 @@ import {
   subscribeSales,
   subscribeUsers,
 } from "./services/firestoreService";
+import { startAutoCloseScheduler } from "./services/shiftService";
 import { resolveDefaultRoute } from "./utils/auth";
 
 function ProtectedRoute({ allowedRoles, role, children }) {
@@ -138,12 +139,14 @@ function App() {
     const unsubBarbers = subscribeBarbers(setBarbers);
     const unsubSales = subscribeSales(setSales);
     const unsubDailyReports = subscribeDailyReports(setDailyReports);
+    const stopAutoCloseScheduler = startAutoCloseScheduler();
 
     return () => {
       unsubShops();
       unsubBarbers();
       unsubSales();
       unsubDailyReports();
+      stopAutoCloseScheduler();
     };
   }, [userId, hasRole]);
 

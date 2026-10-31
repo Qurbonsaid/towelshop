@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
-  DollarSign,
   Package,
   Plus,
   Shield,
@@ -592,26 +591,26 @@ export function StaffManagementPage({
                           {isTodayClosed ? (
                             <div className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200">
                               <CheckCircle2 size={14} />
-                              <span>Bugungi kassa qabul qilingan</span>
+                              <span>Bugungi kassa yopilgan</span>
                             </div>
-                          ) : todayCash > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleAcceptHandover(staffId, todayReport?.id)
-                              }
-                              className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 active:scale-95 transition-all"
-                            >
-                              <DollarSign size={14} />
-                              <span>
-                                Kassani qabul qilish (
-                                {todayCash.toLocaleString()} so'm)
-                              </span>
-                            </button>
                           ) : (
-                            <span className="text-xs text-slate-400">
-                              Bugun naqd pul yig'ilmagan
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-800 bg-amber-50 px-2 py-1 rounded-lg border border-amber-200">
+                                <span>03:00 da avtomatik yopiladi</span>
+                              </span>
+                              {todayCash > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleAcceptHandover(staffId, todayReport?.id)
+                                  }
+                                  className="flex items-center gap-1 rounded-lg bg-slate-100 hover:bg-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 active:scale-95 transition-all"
+                                  title="Zarurat bo'lsa muddatidan oldin qo'lda qabul qilish"
+                                >
+                                  <span>Muddatidan oldin yopish</span>
+                                </button>
+                              )}
+                            </div>
                           )}
                         </>
                       )}
@@ -693,8 +692,8 @@ export function StaffManagementPage({
                           }`}
                         >
                           {rep.status === "closed"
-                            ? "Topshirilgan"
-                            : "Faol kassa"}
+                            ? "Yopilgan"
+                            : "Faol (03:00 da avto)"}
                         </span>
                       </div>
 

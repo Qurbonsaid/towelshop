@@ -284,7 +284,7 @@ export function StatsPage({
               <div className="flex items-center gap-2 font-bold text-emerald-800">
                 <CheckCircle2 size={18} className="text-emerald-600" />
                 <span>
-                  Bugungi kun yakunlandi va menejer tomonidan qabul qilindi.
+                  Kun yakunlandi (Kassa yopilgan).
                 </span>
               </div>
               <div className="pt-2 border-t border-emerald-200/70 text-[11px] text-emerald-900 space-y-1">
@@ -304,12 +304,11 @@ export function StatsPage({
             <div className="space-y-1.5 rounded-xl bg-amber-50/70 p-3.5 border border-amber-200 text-xs text-amber-900">
               <h4 className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                 <Clock size={14} className="text-amber-700" />
-                <span>Kun yakunida sochiqlarni topshirish</span>
+                <span>Kassa avtomatik yopiladi</span>
               </h4>
               <p className="text-[11px] text-amber-800">
-                Ish kuni tugagach, sotilmagan ortib qolgan yangi sochiqlarni
-                ombor menejeriga topshiring. Menejer qoldiqni sanab qabul qiladi
-                va hisobotni yakunlaydi.
+                Kassani qo'lda yopish shart emas. Har kuni soat 03:00 (Asia/Tashkent) da
+                kunlik kassa va hisobotlar tizim tomonidan avtomatik yopiladi.
               </p>
             </div>
           )}
@@ -484,8 +483,8 @@ export function StatsPage({
                       }`}
                     >
                       {rep.status === "closed"
-                        ? "Topshirilgan / Yopilgan"
-                        : "Faol"}
+                        ? "Yopilgan"
+                        : "Faol (03:00 da avto)"}
                     </span>
                   </div>
 
