@@ -3,55 +3,77 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight, DollarSign, Package, TrendingUp } from './icons'
 import { DebtorsModal } from './DebtorsModal'
 import { uz } from '../i18n/uz'
+import { getTodayDateString } from '../services/firestoreService'
 
 export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) {
   const navigate = useNavigate()
   const [isDebtorsModalOpen, setIsDebtorsModalOpen] = useState(false)
   const [debtorsModalTab, setDebtorsModalTab] = useState('debt')
 
-  const stats = useMemo(() => {
-    // oxlint-disable-next-line react/purity
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  const todayStr = useMemo(() => getTodayDateString(), [])
+  const currentMonthStr = useMemo(() => todayStr.slice(0, 7), [todayStr])
 
+  const stats = useMemo(() => {
+    let dailyCollected = 0
+    let dailyCash = 0
+    let dailyCard = 0
     let dailySum = 0
     let dailyCount = 0
     let dailyTowels = 0
+    let dailyReturned = 0
 
+    let monthlyCollected = 0
     let monthlySum = 0
     let monthlyCount = 0
     let monthlyTowels = 0
 
+    let allTimeCollected = 0
     let allTimeSum = 0
     let allTimeCount = 0
     let allTimeTowels = 0
 
     sales.forEach((s) => {
-      const time = s.createdAt?.toMillis
-        ? s.createdAt.toMillis()
-        : s.createdAt?.toDate
-          ? s.createdAt.toDate().getTime()
-          : s.createdAt
-            ? new Date(s.createdAt).getTime()
-            : (s.date ? new Date(`${s.date}T00:00:00`).getTime() : 0)
-      const amount = Number(s.totalPrice) || 0
-      const towels = Number(s.quantityDelivered) || 0
+      const sDate =
+        s.date ||
+        (s.createdAt
+          ? getTodayDateString(
+              s.createdAt.toDate ? s.createdAt.toDate() : s.createdAt
+            )
+          : '')
 
-      allTimeSum += amount
+      const isToday = sDate === todayStr
+      const isThisMonth = Boolean(sDate && sDate.startsWith(currentMonthStr))
+
+      const cash = Number(s.cashAmount) || 0
+      const card = Number(s.cardAmount) || 0
+      const paid = Number(s.totalPaid ?? (cash + card)) || 0
+      const price = Number(s.totalPrice) || 0
+      const towels = Number(s.quantityDelivered) || 0
+      const returned = Number(s.returnedTowels) || 0
+
+      // All-Time
+      allTimeCollected += paid
+      allTimeSum += price
       allTimeCount += 1
       allTimeTowels += towels
 
-      if (time >= startOfMonth) {
-        monthlySum += amount
+      // Monthly
+      if (isThisMonth) {
+        monthlyCollected += paid
+        monthlySum += price
         monthlyCount += 1
         monthlyTowels += towels
       }
 
-      if (time >= startOfToday) {
-        dailySum += amount
+      // Daily (Today)
+      if (isToday) {
+        dailyCollected += paid
+        dailyCash += cash
+        dailyCard += card
+        dailySum += price
         dailyCount += 1
         dailyTowels += towels
+        dailyReturned += returned
       }
     })
 
@@ -61,12 +83,18 @@ export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) 
     const totalOverpaid = barbers.reduce((acc, b) => acc + (Number(b.overpaid) || 0), 0)
 
     return {
+      dailyCollected,
+      dailyCash,
+      dailyCard,
       dailySum,
       dailyCount,
       dailyTowels,
+      dailyReturned,
+      monthlyCollected,
       monthlySum,
       monthlyCount,
       monthlyTowels,
+      allTimeCollected,
       allTimeSum,
       allTimeCount,
       allTimeTowels,
@@ -75,15 +103,21 @@ export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) 
       debtorsCount,
       overpaidCount,
     }
-  }, [sales, barbers])
+  }, [sales, barbers, todayStr, currentMonthStr])
 
   const {
+    dailyCollected,
+    dailyCash,
+    dailyCard,
     dailySum,
     dailyCount,
     dailyTowels,
+    dailyReturned,
+    monthlyCollected,
     monthlySum,
     monthlyCount,
     monthlyTowels,
+    allTimeCollected,
     allTimeSum,
     allTimeCount,
     allTimeTowels,
@@ -100,7 +134,7 @@ export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) 
 
   return (
     <div className="space-y-3">
-      {/* 3 Main Sales Volumes */}
+      {/* 3 Main Sales & Cash Flow Volumes */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         {/* Daily (Clickable -> Opens Daily Stats & Logs Page) */}
         <div
@@ -114,11 +148,11 @@ export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) 
             }
           }}
           className="group relative flex flex-col justify-between rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 text-white shadow-sm cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-98 transition-all"
-          title="Bugungi hisobot va qarzlar jurnalini ko'rish"
+          title="Bugungi hisobot va kassa jurnalini ko'rish"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-emerald-100">{uz.admin.stats.dailyTitle}</span>
+              <span className="text-xs font-semibold text-emerald-100">Bugungi kassa (Tushum)</span>
               <span className="inline-flex items-center rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white group-hover:bg-white/30 transition-all">
                 Batafsil →
               </span>
@@ -128,42 +162,55 @@ export function AdminStatsCards({ sales = [], barbers = [], barbershops = [] }) 
             </div>
           </div>
           <div className="mt-2">
-            <p className="text-xl font-bold tracking-tight">{dailySum.toLocaleString()} {uz.common.sum}</p>
-            <p className="text-xs text-emerald-100 mt-0.5">
-              {dailyCount} {uz.admin.stats.salesCount} • {dailyTowels} {uz.admin.stats.towelCount}
+            <p className="text-2xl font-black tracking-tight">{dailyCollected.toLocaleString()} {uz.common.sum}</p>
+            <p className="text-xs text-emerald-100 mt-1 font-medium">
+              +{dailyTowels} {uz.admin.stats.towelCount}{dailyReturned > 0 ? ` • -${dailyReturned} olindi` : ''} • {dailyCount} {uz.admin.stats.salesCount}
             </p>
+            <div className="mt-2.5 pt-2 border-t border-white/20 flex items-center justify-between text-[11px] text-emerald-100">
+              <span>Naqd: <strong>{dailyCash.toLocaleString()}</strong></span>
+              <span>Click: <strong>{dailyCard.toLocaleString()}</strong></span>
+              <span className="opacity-90">Sotuv: {dailySum.toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
         {/* Monthly */}
         <div className="flex flex-col justify-between rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 p-4 text-white shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-sky-100">{uz.admin.stats.monthlyTitle}</span>
+            <span className="text-xs font-semibold text-sky-100">{uz.admin.stats.monthlyTitle} (Kassa)</span>
             <div className="rounded-lg bg-sky-400/30 p-1.5">
               <Package size={16} />
             </div>
           </div>
           <div className="mt-2">
-            <p className="text-xl font-bold tracking-tight">{monthlySum.toLocaleString()} {uz.common.sum}</p>
-            <p className="text-xs text-sky-100 mt-0.5">
-              {monthlyCount} {uz.admin.stats.salesCount} • {monthlyTowels} {uz.admin.stats.towelCount}
+            <p className="text-2xl font-black tracking-tight">{monthlyCollected.toLocaleString()} {uz.common.sum}</p>
+            <p className="text-xs text-sky-100 mt-1 font-medium">
+              {monthlyTowels} {uz.admin.stats.towelCount} • {monthlyCount} {uz.admin.stats.salesCount}
             </p>
+            <div className="mt-2.5 pt-2 border-t border-white/20 flex items-center justify-between text-[11px] text-sky-100">
+              <span>Oylik tushum</span>
+              <span className="opacity-90">Sotuv: {monthlySum.toLocaleString()} so'm</span>
+            </div>
           </div>
         </div>
 
         {/* All-Time */}
         <div className="flex flex-col justify-between rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-600 p-4 text-white shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-indigo-100">{uz.admin.stats.allTimeTitle}</span>
+            <span className="text-xs font-semibold text-indigo-100">{uz.admin.stats.allTimeTitle} (Kassa)</span>
             <div className="rounded-lg bg-indigo-400/30 p-1.5">
               <DollarSign size={16} />
             </div>
           </div>
           <div className="mt-2">
-            <p className="text-xl font-bold tracking-tight">{allTimeSum.toLocaleString()} {uz.common.sum}</p>
-            <p className="text-xs text-indigo-100 mt-0.5">
-              {allTimeCount} {uz.admin.stats.salesCount} • {allTimeTowels} {uz.admin.stats.towelCount}
+            <p className="text-2xl font-black tracking-tight">{allTimeCollected.toLocaleString()} {uz.common.sum}</p>
+            <p className="text-xs text-indigo-100 mt-1 font-medium">
+              {allTimeTowels} {uz.admin.stats.towelCount} • {allTimeCount} {uz.admin.stats.salesCount}
             </p>
+            <div className="mt-2.5 pt-2 border-t border-white/20 flex items-center justify-between text-[11px] text-indigo-100">
+              <span>Jami tushum</span>
+              <span className="opacity-90">Sotuv: {allTimeSum.toLocaleString()} so'm</span>
+            </div>
           </div>
         </div>
       </div>

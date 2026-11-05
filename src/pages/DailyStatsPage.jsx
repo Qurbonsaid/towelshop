@@ -390,11 +390,17 @@ export function DailyStatsPage({
     let cash = 0;
     let card = 0;
     let discount = 0;
+    let totalDeliveredTowels = 0;
+    let totalReturnedTowels = 0;
+    let totalSalesSum = 0;
 
     filteredSales.forEach((s) => {
       cash += Number(s.cashAmount) || 0;
       card += Number(s.cardAmount) || 0;
       discount += Number(s.discount) || 0;
+      totalDeliveredTowels += Number(s.quantityDelivered) || 0;
+      totalReturnedTowels += Number(s.returnedTowels) || 0;
+      totalSalesSum += Number(s.totalPrice) || 0;
     });
 
     const totalCollected = cash + card;
@@ -418,6 +424,9 @@ export function DailyStatsPage({
       card,
       discount,
       totalCollected,
+      totalSalesSum,
+      totalDeliveredTowels,
+      totalReturnedTowels,
       totalDebtPaid,
       totalNewDebt,
       operationsCount: filteredSales.length,
@@ -550,12 +559,20 @@ export function DailyStatsPage({
         </div>
 
         <div className="rounded-xl bg-gradient-to-r from-emerald-600 via-emerald-700 to-teal-700 p-4 text-white shadow-sm">
-          <p className="text-xs font-semibold text-emerald-100">
-            Jami qabul qilingan tushum:
-          </p>
-          <p className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight">
-            {totals.totalCollected.toLocaleString()} {uz.common.sum}
-          </p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold text-emerald-100">
+                Jami qabul qilingan tushum:
+              </p>
+              <p className="mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight">
+                {totals.totalCollected.toLocaleString()} {uz.common.sum}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/20 px-3 py-1.5 text-right backdrop-blur-xs">
+              <span className="text-[10px] text-emerald-100 block">Yetkazilgan sochiq:</span>
+              <span className="text-base font-extrabold text-white">{totals.totalDeliveredTowels} dona</span>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
